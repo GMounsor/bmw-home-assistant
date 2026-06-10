@@ -1,34 +1,75 @@
-<<<<<<< HEAD
 # BMW Home Assistant
 
 A custom Home Assistant integration for BMW vehicles using the official [BMW CarData API](https://bmw-cardata.bmwgroup.com/customer/public/api-documentation).
 
-Designed for **petrol/diesel (ICE) BMW vehicles** in the UK/EU. Polls the BMW REST API every 30 minutes (within the free 50 calls/day limit).
+Designed for **petrol/diesel (ICE) BMW vehicles** in the UK/EU. All distances and speeds are displayed in **miles**. Polls the BMW REST API every 30 minutes (within the free 50 calls/day limit).
 
 ---
 
 ## What You Get
 
-| Entity | Type | Description |
-|---|---|---|
-| Mileage | Sensor | Odometer reading (km) |
-| Fuel Level | Sensor | Fuel % |
-| Remaining Fuel | Sensor | Estimated range from fuel (km) |
-| Remaining Range | Sensor | Navigation system range estimate (km) |
-| Next Service Distance | Sensor | km until next service |
-| Service Due Date | Sensor | Date of next service |
-| Door Lock Status | Sensor | Overall lock state |
-| Door Status | Sensor | Overall door open/closed state |
-| Alarm Status | Sensor | Alarm arm state |
-| Bonnet | Binary Sensor | Open/closed |
-| Boot | Binary Sensor | Open/closed |
-| Door Front Driver | Binary Sensor | Open/closed |
-| Door Front Passenger | Binary Sensor | Open/closed |
-| Door Rear Driver | Binary Sensor | Open/closed |
-| Door Rear Passenger | Binary Sensor | Open/closed |
-| Windows (×4) | Binary Sensor | Open/closed |
-| Alarm Active | Binary Sensor | Triggered/normal |
-| Location | Device Tracker | GPS coordinates + heading |
+### Sensors
+
+| Entity | Description |
+|---|---|
+| Mileage | Odometer (miles) |
+| Fuel Level | Fuel % |
+| Remaining Fuel | Estimated range from fuel (miles) |
+| Remaining Range | Navigation system range estimate (miles) |
+| Last Remaining Range | Most recent range before ignition off (miles) |
+| Engine Coolant Temp | Engine ECT in °C |
+| 12V Battery Voltage | Electrical system voltage (V) |
+| 12V Battery SOC | Battery state of charge (%) |
+| Tyre Pressure FL/FR/RL/RR | Current pressure (bar) |
+| Tyre Pressure Target FL/FR/RL/RR | Manufacturer target pressure (bar) |
+| Tyre Temperature FL/FR/RL/RR | Tyre surface temperature (°C) |
+| Tyre Diagnosis | Overall tyre health status |
+| Average Speed | Trip average speed (mph) |
+| Next Service Distance | Miles until next service |
+| Service Due Date | Date of next service |
+| Condition Based Services | CBS status messages |
+| Check Control Messages | Active warning messages |
+| Door Lock Status | Overall lock state |
+| Door Status | Overall door open/closed state |
+| Alarm Arm Status | Alarm armed/disarmed state |
+| Trip Distance | Last trip segment distance (miles) |
+| Trip End Time | Last trip end timestamp |
+| Driving Score – Acceleration | Star rating (0–5) |
+| Driving Score – Braking | Star rating (0–5) |
+| Weekly Distance (Short Term) | Recent weekly average (miles) |
+| Weekly Distance (Long Term) | Long-term weekly average (miles) |
+| Lifetime Fuel Used | Total fuel consumed (L) |
+| Lifetime Reference Distance | Distance over which fuel was measured (miles) |
+| SIM Status | Embedded SIM connectivity state |
+| Diagnostic Trouble Codes | Raw OBD DTC data |
+
+### Binary Sensors
+
+| Entity | Description |
+|---|---|
+| Engine Active | Engine running |
+| Ignition | Ignition on/off |
+| Moving | Vehicle in motion |
+| Lights | Running lights on/off |
+| Door Front Driver | Open/closed |
+| Door Front Passenger | Open/closed |
+| Door Rear Driver | Open/closed |
+| Door Rear Passenger | Open/closed |
+| Bonnet | Open/closed |
+| Boot | Open/closed |
+| Window Front Driver | Open/closed |
+| Window Front Passenger | Open/closed |
+| Window Rear Driver | Open/closed |
+| Window Rear Passenger | Open/closed |
+| Alarm Active | Triggered/normal |
+| 12V Battery Recharge Needed | Service alert |
+| Deep Sleep Mode | Vehicle in deep sleep |
+
+### Device Tracker
+
+| Entity | Description |
+|---|---|
+| Location | GPS coordinates + heading |
 
 ---
 
@@ -92,6 +133,7 @@ Designed for **petrol/diesel (ICE) BMW vehicles** in the UK/EU. Polls the BMW RE
 
 BMW allows **50 API calls/day** per account. This integration uses:
 - 1 call per VIN per poll (every 30 min = max 48 calls/day for 1 car)
+- 1 call per VIN per day for tyre diagnosis (refreshed at most every 23 hours)
 - 2–3 calls on first setup (vehicle discovery + container creation)
 
 If you have multiple BMWs, polling will use 1 call per VIN per poll. Consider increasing `SCAN_INTERVAL_MINUTES` in `const.py` if needed.
@@ -102,15 +144,11 @@ If you have multiple BMWs, polling will use 1 call per VIN per poll. Consider in
 
 - **Read-only** – this integration cannot send commands (lock/unlock, remote start, etc.)
 - BMW CarData portal is **not available in all regions** (e.g. disabled in Finland)
-- ICE-only – EV/charging sensors not included (can be added by extending `const.py`)
+- ICE-only – EV/charging sensors not included
 - Older vehicles on iDrive 6 or below may send data infrequently
 
 ---
 
 ## Credits
 
-Built using the official [BMW CarData API](https://bmw-cardata.bmwgroup.com/customer/public/api-documentation). Inspired by [kvanbiesen/bmw-cardata-ha](https://github.com/kvanbiesen/bmw-cardata-ha).
-=======
-# bmw-home-assistant
-BMW Integration using car data
->>>>>>> 056b630e23a894115f4b08a3e614b29e713d15af
+Built using the official [BMW CarData API](https://bmw-cardata.bmwgroup.com/customer/public/api-documentation).

@@ -25,10 +25,7 @@ async def async_setup_entry(
     """Set up BMW CarData device tracker entities."""
     coordinator: BMWCoordinator = hass.data[DOMAIN][entry.entry_id]
     vins: list[str] = entry.data[CONF_VINS]
-
-    async_add_entities(
-        BMWDeviceTracker(coordinator, vin) for vin in vins
-    )
+    async_add_entities(BMWDeviceTracker(coordinator, vin) for vin in vins)
 
 
 class BMWDeviceTracker(CoordinatorEntity[BMWCoordinator], TrackerEntity):
@@ -51,8 +48,8 @@ class BMWDeviceTracker(CoordinatorEntity[BMWCoordinator], TrackerEntity):
         return SourceType.GPS
 
     def _get_value(self, descriptor: str) -> float | None:
-        vin_data: dict[str, Any] = (self.coordinator.data or {}).get(self._vin, {})
-        entry = vin_data.get(descriptor)
+        telemetry = (self.coordinator.data or {}).get(self._vin, {}).get("telemetry", {})
+        entry = telemetry.get(descriptor)
         if entry is None:
             return None
         raw = entry.get("value")
@@ -72,4 +69,6 @@ class BMWDeviceTracker(CoordinatorEntity[BMWCoordinator], TrackerEntity):
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         heading = self._get_value(_HEADING_DESCRIPTOR)
-        return {"heading": heading} if heading is not None else {}
+        if heading is not None:
+            return {"heading": heading}
+        return {}

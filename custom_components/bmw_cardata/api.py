@@ -152,3 +152,15 @@ class BMWCarDataAPI:
             params={"containerId": container_id},
         )
         return data.get("telematicData", {})
+
+    async def get_tyre_diagnosis(self, vin: str) -> dict[str, Any]:
+        """Fetch Smart Maintenance tyre diagnosis for a VIN.
+
+        Returns per-wheel tyre health, wear, manufacturer, and dimension data.
+        Costs 1 API call — fetched at most once per day by the coordinator.
+        """
+        try:
+            return await self._get(f"/customers/vehicles/{vin}/smartMaintenanceTyreDiagnosis")
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning("Tyre diagnosis unavailable for %s: %s", vin, err)
+            return {}

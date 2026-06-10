@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 import aiohttp
@@ -21,27 +21,22 @@ from .const import (
     CONF_VINS,
     DOMAIN,
     SCAN_INTERVAL_MINUTES,
+    TYRE_DIAGNOSIS_REFRESH_HOURS,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
 
-class BMWCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
+class BMWCoordinator(DataUpdateCoordinator):
     """Polls BMW CarData for all VINs on a schedule.
 
-    coordinator.data is keyed by VIN; each value is the raw telematicData dict
-    returned by the API (descriptor_id → {value, unit, timestamp}).
+    coordinator.data is keyed by VIN. Each value is a dict with two keys:
+        "telemetry"      - descriptor_id -> {value, unit, timestamp}
+        "tyre_diagnosis" - raw response from the tyre diagnosis endpoint
+                           (refreshed at most once every 23 hours)
     """
 
-    def __init__(
-        self,
-        hass: HomeAssistant,
-        session: aiohttp.ClientSession,
-        client_id: str,
-        token: TokenData,
-        container_id: str,
-        vins: list[str],
-    ) -> None:
+    def __init__(self, hass, session, client_id, token, container_id, vins):
         super().__init__(
             hass,
             _LOGGER,
@@ -53,34 +48,49 @@ class BMWCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
         self._container_id = container_id
         self._vins = vins
         self.api = BMWCarDataAPI(session, client_id, token)
+        self._tyre_diagnosis_last_fetch = {}
 
-    async def _async_update_data(self) -> dict[str, dict[str, Any]]:
-        """Fetch latest telemetry for every VIN."""
-        result: dict[str, dict[str, Any]] = {}
+    async def _async_update_data(self):
+        """Fetch latest telemetry (and tyre diagnosis if due) for every VIN."""
+        existing = self.data or {}
+        result = {}
+
         try:
             for vin in self._vins:
                 _LOGGER.debug("Fetching telematics for VIN %s", vin)
-                data = await self.api.get_telematics(vin, self._container_id)
-                result[vin] = data
+                telemetry = await self.api.get_telematics(vin, self._container_id)
+
+                tyre_diagnosis = existing.get(vin, {}).get("tyre_diagnosis", {})
+                last_fetch = self._tyre_diagnosis_last_fetch.get(vin)
+                refresh_due = (
+                    last_fetch is None
+                    or (datetime.now() - last_fetch).total_seconds()
+                    > TYRE_DIAGNOSIS_REFRESH_HOURS * 3600
+                )
+                if refresh_due:
+                    _LOGGER.debug("Fetching tyre diagnosis for VIN %s", vin)
+                    tyre_diagnosis = await self.api.get_tyre_diagnosis(vin)
+                    self._tyre_diagnosis_last_fetch[vin] = datetime.now()
+
+                result[vin] = {
+                    "telemetry": telemetry,
+                    "tyre_diagnosis": tyre_diagnosis,
+                }
+
         except PermissionError as err:
-            # Token revoked / re-auth required
             raise ConfigEntryAuthFailed(str(err)) from err
         except RuntimeError as err:
-            # Rate limited
             raise UpdateFailed(str(err)) from err
         except aiohttp.ClientError as err:
             raise UpdateFailed(f"Network error fetching BMW data: {err}") from err
 
-        # Persist any refreshed token back to the config entry
         self._persist_token()
         return result
 
-    def _persist_token(self) -> None:
-        """Write the current token to the config entry data (in case it was refreshed)."""
+    def _persist_token(self):
+        """Write the current token back to the config entry if it was refreshed."""
         token = self.api.get_current_token()
-        # Find the config entry for this coordinator
-        entries = self.hass.config_entries.async_entries(DOMAIN)
-        for entry in entries:
+        for entry in self.hass.config_entries.async_entries(DOMAIN):
             if entry.data.get(CONF_CLIENT_ID) == self._client_id:
                 new_data = {
                     **entry.data,

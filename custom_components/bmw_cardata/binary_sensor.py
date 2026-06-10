@@ -17,45 +17,53 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import CONF_VINS, DOMAIN
 from .coordinator import BMWCoordinator
 
-# BMW uses various truthy string values
-_TRUE_VALUES = {"true", "1", "yes", "open", "OPEN"}
-_FALSE_VALUES = {"false", "0", "no", "closed", "CLOSED"}
+_TRUE_VALUES = {"true", "1", "yes", "open", "on", "active"}
+_FALSE_VALUES = {"false", "0", "no", "closed", "off"}
 
 
-def _parse_bool(value: str | None) -> bool | None:
-    """Parse a BMW string boolean/state into a Python bool."""
+def _parse_bool(value):
     if value is None:
         return None
-    lower = value.lower()
-    if lower in _TRUE_VALUES:
+    if value.lower() in _TRUE_VALUES:
         return True
-    if lower in _FALSE_VALUES:
+    if value.lower() in _FALSE_VALUES:
         return False
     return None
 
 
 @dataclass(frozen=True, kw_only=True)
 class BMWBinarySensorEntityDescription(BinarySensorEntityDescription):
-    """Extends BinarySensorEntityDescription with a BMW descriptor key."""
-    descriptor: str
-    # Optional: if the "true" state means something specific
-    true_value: str | None = None
+    descriptor: str = ""
 
 
-BINARY_SENSORS: tuple[BMWBinarySensorEntityDescription, ...] = (
+BINARY_SENSORS = (
     BMWBinarySensorEntityDescription(
-        key="hood_open",
-        descriptor="vehicle.body.hood.isOpen",
-        name="Bonnet",
-        device_class=BinarySensorDeviceClass.OPENING,
-        icon="mdi:car-raised-hood",
+        key="engine_active",
+        descriptor="vehicle.drivetrain.engine.isActive",
+        name="Engine Active",
+        device_class=BinarySensorDeviceClass.RUNNING,
+        icon="mdi:engine",
     ),
     BMWBinarySensorEntityDescription(
-        key="trunk_open",
-        descriptor="vehicle.body.trunk.isOpen",
-        name="Boot",
-        device_class=BinarySensorDeviceClass.OPENING,
-        icon="mdi:car-back",
+        key="ignition_on",
+        descriptor="vehicle.drivetrain.engine.isIgnitionOn",
+        name="Ignition",
+        device_class=BinarySensorDeviceClass.POWER,
+        icon="mdi:key",
+    ),
+    BMWBinarySensorEntityDescription(
+        key="is_moving",
+        descriptor="vehicle.isMoving",
+        name="Moving",
+        device_class=BinarySensorDeviceClass.MOTION,
+        icon="mdi:car-arrow-right",
+    ),
+    BMWBinarySensorEntityDescription(
+        key="lights_on",
+        descriptor="vehicle.body.lights.isRunningOn",
+        name="Lights",
+        device_class=BinarySensorDeviceClass.LIGHT,
+        icon="mdi:car-light-high",
     ),
     BMWBinarySensorEntityDescription(
         key="door_row1_driver",
@@ -84,6 +92,20 @@ BINARY_SENSORS: tuple[BMWBinarySensorEntityDescription, ...] = (
         name="Door Rear Passenger",
         device_class=BinarySensorDeviceClass.DOOR,
         icon="mdi:car-door",
+    ),
+    BMWBinarySensorEntityDescription(
+        key="hood_open",
+        descriptor="vehicle.body.hood.isOpen",
+        name="Bonnet",
+        device_class=BinarySensorDeviceClass.OPENING,
+        icon="mdi:car-raised-hood",
+    ),
+    BMWBinarySensorEntityDescription(
+        key="trunk_open",
+        descriptor="vehicle.body.trunk.isOpen",
+        name="Boot",
+        device_class=BinarySensorDeviceClass.OPENING,
+        icon="mdi:car-back",
     ),
     BMWBinarySensorEntityDescription(
         key="window_row1_driver",
@@ -120,18 +142,26 @@ BINARY_SENSORS: tuple[BMWBinarySensorEntityDescription, ...] = (
         device_class=BinarySensorDeviceClass.TAMPER,
         icon="mdi:alarm-light",
     ),
+    BMWBinarySensorEntityDescription(
+        key="battery_recharge_needed",
+        descriptor="vehicle.electricalSystem.battery.serviceDemand.recharge",
+        name="12V Battery Recharge Needed",
+        device_class=BinarySensorDeviceClass.BATTERY_CHARGING,
+        icon="mdi:battery-low",
+    ),
+    BMWBinarySensorEntityDescription(
+        key="deep_sleep",
+        descriptor="vehicle.vehicle.deepSleepModeActive",
+        name="Deep Sleep Mode",
+        device_class=BinarySensorDeviceClass.POWER,
+        icon="mdi:sleep",
+    ),
 )
 
 
-async def async_setup_entry(
-    hass: HomeAssistant,
-    entry: ConfigEntry,
-    async_add_entities: AddEntitiesCallback,
-) -> None:
-    """Set up BMW CarData binary sensor entities."""
-    coordinator: BMWCoordinator = hass.data[DOMAIN][entry.entry_id]
-    vins: list[str] = entry.data[CONF_VINS]
-
+async def async_setup_entry(hass, entry, async_add_entities):
+    coordinator = hass.data[DOMAIN][entry.entry_id]
+    vins = entry.data[CONF_VINS]
     entities = [
         BMWBinarySensorEntity(coordinator, vin, description)
         for vin in vins
@@ -140,17 +170,10 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
-class BMWBinarySensorEntity(CoordinatorEntity[BMWCoordinator], BinarySensorEntity):
-    """A single BMW binary telemetry sensor."""
+class BMWBinarySensorEntity(CoordinatorEntity, BinarySensorEntity):
+    """A single BMW binary sensor."""
 
-    entity_description: BMWBinarySensorEntityDescription
-
-    def __init__(
-        self,
-        coordinator: BMWCoordinator,
-        vin: str,
-        description: BMWBinarySensorEntityDescription,
-    ) -> None:
+    def __init__(self, coordinator, vin, description):
         super().__init__(coordinator)
         self._vin = vin
         self.entity_description = description
@@ -163,17 +186,15 @@ class BMWBinarySensorEntity(CoordinatorEntity[BMWCoordinator], BinarySensorEntit
         }
 
     @property
-    def is_on(self) -> bool | None:
-        """Return True if the binary sensor is active/open."""
-        vin_data: dict[str, Any] = (self.coordinator.data or {}).get(self._vin, {})
-        entry = vin_data.get(self.entity_description.descriptor)
+    def is_on(self):
+        telemetry = (self.coordinator.data or {}).get(self._vin, {}).get("telemetry", {})
+        entry = telemetry.get(self.entity_description.descriptor)
         if entry is None:
             return None
-        raw = entry.get("value")
-        return _parse_bool(raw)
+        return _parse_bool(entry.get("value"))
 
     @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        vin_data: dict[str, Any] = (self.coordinator.data or {}).get(self._vin, {})
-        entry = vin_data.get(self.entity_description.descriptor, {})
+    def extra_state_attributes(self):
+        telemetry = (self.coordinator.data or {}).get(self._vin, {}).get("telemetry", {})
+        entry = telemetry.get(self.entity_description.descriptor, {})
         return {k: v for k, v in entry.items() if k != "value" and v is not None}

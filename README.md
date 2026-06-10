@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # BMW Home Assistant
 
 A custom Home Assistant integration for BMW vehicles using the official [BMW CarData API](https://bmw-cardata.bmwgroup.com/customer/public/api-documentation).
@@ -109,3 +110,7 @@ If you have multiple BMWs, polling will use 1 call per VIN per poll. Consider in
 ## Credits
 
 Built using the official [BMW CarData API](https://bmw-cardata.bmwgroup.com/customer/public/api-documentation). Inspired by [kvanbiesen/bmw-cardata-ha](https://github.com/kvanbiesen/bmw-cardata-ha).
+=======
+# bmw-home-assistant
+BMW Integration using car data
+>>>>>>> 056b630e23a894115f4b08a3e614b29e713d15af

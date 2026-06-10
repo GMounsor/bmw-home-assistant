@@ -1,5 +1,7 @@
 # BMW Home Assistant
 
+> **⚠️ Disclaimer:** This is an **unofficial, community-developed** integration and is in no way affiliated with, endorsed by, or supported by BMW AG or any of its subsidiaries. BMW, the BMW logo, and related trademarks are the property of BMW AG. Use of this integration is entirely **at your own risk**. The author accepts **no liability** for any damage, data loss, vehicle issues, or other consequences arising from its use. This software is provided **without any warranty**, express or implied, including but not limited to warranties of merchantability or fitness for a particular purpose.
+
 A custom Home Assistant integration for BMW vehicles using the official [BMW CarData API](https://bmw-cardata.bmwgroup.com/customer/public/api-documentation).
 
 Designed for **petrol/diesel (ICE) BMW vehicles** in the UK/EU. All distances and speeds are displayed in **miles**. Polls the BMW REST API every 30 minutes (within the free 50 calls/day limit).

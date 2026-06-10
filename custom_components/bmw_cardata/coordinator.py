@@ -8,6 +8,7 @@ from typing import Any
 import aiohttp
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import BMWCarDataAPI
@@ -25,6 +26,8 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+_REPAIRS_ISSUE_ID = "auth_failed"
 
 
 class BMWCoordinator(DataUpdateCoordinator):
@@ -57,35 +60,68 @@ class BMWCoordinator(DataUpdateCoordinator):
 
         try:
             for vin in self._vins:
-                _LOGGER.debug("Fetching telematics for VIN %s", vin)
-                telemetry = await self.api.get_telematics(vin, self._container_id)
-
-                tyre_diagnosis = existing.get(vin, {}).get("tyre_diagnosis", {})
-                last_fetch = self._tyre_diagnosis_last_fetch.get(vin)
-                refresh_due = (
-                    last_fetch is None
-                    or (datetime.now() - last_fetch).total_seconds()
-                    > TYRE_DIAGNOSIS_REFRESH_HOURS * 3600
-                )
-                if refresh_due:
-                    _LOGGER.debug("Fetching tyre diagnosis for VIN %s", vin)
-                    tyre_diagnosis = await self.api.get_tyre_diagnosis(vin)
-                    self._tyre_diagnosis_last_fetch[vin] = datetime.now()
-
-                result[vin] = {
-                    "telemetry": telemetry,
-                    "tyre_diagnosis": tyre_diagnosis,
-                }
+                vin_result = await self._fetch_vin(vin, existing.get(vin, {}))
+                result[vin] = vin_result
 
         except PermissionError as err:
+            # Raise a HA repairs issue so the user gets a UI notification
+            ir.async_create_issue(
+                self.hass,
+                DOMAIN,
+                _REPAIRS_ISSUE_ID,
+                is_fixable=False,
+                severity=ir.IssueSeverity.ERROR,
+                translation_key="auth_failed",
+            )
             raise ConfigEntryAuthFailed(str(err)) from err
-        except RuntimeError as err:
-            raise UpdateFailed(str(err)) from err
         except aiohttp.ClientError as err:
             raise UpdateFailed(f"Network error fetching BMW data: {err}") from err
 
+        # Clear any existing auth issue on successful poll
+        ir.async_delete_issue(self.hass, DOMAIN, _REPAIRS_ISSUE_ID)
         self._persist_token()
         return result
+
+    async def _fetch_vin(self, vin: str, existing_vin_data: dict) -> dict:
+        """Fetch telemetry + tyre diagnosis for a single VIN.
+
+        If telemetry fails for this VIN, log a warning and return the last
+        known data so other VINs and existing entity states are preserved.
+        """
+        try:
+            _LOGGER.debug("Fetching telematics for VIN %s", vin)
+            telemetry = await self.api.get_telematics(vin, self._container_id)
+        except (RuntimeError, aiohttp.ClientError) as err:
+            _LOGGER.warning(
+                "Failed to fetch telemetry for VIN %s, keeping previous data: %s",
+                vin,
+                err,
+            )
+            telemetry = existing_vin_data.get("telemetry", {})
+
+        tyre_diagnosis = existing_vin_data.get("tyre_diagnosis", {})
+        last_fetch = self._tyre_diagnosis_last_fetch.get(vin)
+        refresh_due = (
+            last_fetch is None
+            or (datetime.now() - last_fetch).total_seconds()
+            > TYRE_DIAGNOSIS_REFRESH_HOURS * 3600
+        )
+        if refresh_due:
+            try:
+                _LOGGER.debug("Fetching tyre diagnosis for VIN %s", vin)
+                tyre_diagnosis = await self.api.get_tyre_diagnosis(vin)
+                self._tyre_diagnosis_last_fetch[vin] = datetime.now()
+            except (RuntimeError, aiohttp.ClientError) as err:
+                _LOGGER.warning(
+                    "Failed to fetch tyre diagnosis for VIN %s, keeping previous data: %s",
+                    vin,
+                    err,
+                )
+
+        return {
+            "telemetry": telemetry,
+            "tyre_diagnosis": tyre_diagnosis,
+        }
 
     def _persist_token(self):
         """Write the current token back to the config entry if it was refreshed."""

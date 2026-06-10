@@ -1,6 +1,8 @@
 """Sensor platform for BMW CarData."""
 from __future__ import annotations
 
+import json
+import logging
 from dataclasses import dataclass
 from typing import Any
 
@@ -13,6 +15,7 @@ from homeassistant.components.sensor import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     PERCENTAGE,
+    EntityCategory,
     UnitOfElectricPotential,
     UnitOfLength,
     UnitOfPressure,
@@ -25,6 +28,8 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import CONF_VINS, DOMAIN
 from .coordinator import BMWCoordinator
+
+_LOGGER = logging.getLogger(__name__)
 
 KM_TO_MILES = 0.621371
 
@@ -74,6 +79,20 @@ def _int_val(v):
         return None
 
 
+def _parse_cbs(v):
+    """Return count of non-OK CBS items, or 0 if all clear."""
+    if v is None:
+        return None
+    try:
+        items = json.loads(v) if isinstance(v, str) else v
+        if isinstance(items, list):
+            pending = [i for i in items if str(i.get("status", "")).upper() not in ("OK", "GREEN")]
+            return len(pending)
+    except (ValueError, TypeError, AttributeError):
+        pass
+    return 0
+
+
 @dataclass(frozen=True, kw_only=True)
 class BMWSensorEntityDescription(SensorEntityDescription):
     descriptor: str = ""
@@ -90,6 +109,7 @@ SENSORS = (
         native_unit_of_measurement=UnitOfLength.MILES,
         device_class=SensorDeviceClass.DISTANCE,
         state_class=SensorStateClass.TOTAL_INCREASING,
+        suggested_display_precision=0,
         value_fn=_km_to_miles,
     ),
     BMWSensorEntityDescription(
@@ -99,6 +119,7 @@ SENSORS = (
         icon="mdi:gas-station",
         native_unit_of_measurement=PERCENTAGE,
         state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
         value_fn=_int_val,
     ),
     BMWSensorEntityDescription(
@@ -108,6 +129,7 @@ SENSORS = (
         icon="mdi:gas-station-outline",
         native_unit_of_measurement="L",
         state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
         value_fn=_float_round,
     ),
     BMWSensorEntityDescription(
@@ -117,7 +139,21 @@ SENSORS = (
         icon="mdi:fuel",
         native_unit_of_measurement="L",
         state_class=SensorStateClass.TOTAL_INCREASING,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=1,
         value_fn=_float_round,
+    ),
+    BMWSensorEntityDescription(
+        key="lifetime_reference_distance",
+        descriptor="vehicle.drivetrain.fuelSystem.consumptionOverLifeTime.overall.referenceDistance",
+        name="Lifetime Reference Distance",
+        icon="mdi:road",
+        native_unit_of_measurement=UnitOfLength.MILES,
+        device_class=SensorDeviceClass.DISTANCE,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=0,
+        value_fn=_km_to_miles,
     ),
     BMWSensorEntityDescription(
         key="remaining_range",
@@ -127,6 +163,7 @@ SENSORS = (
         native_unit_of_measurement=UnitOfLength.MILES,
         device_class=SensorDeviceClass.DISTANCE,
         state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
         value_fn=_km_to_miles,
     ),
     BMWSensorEntityDescription(
@@ -137,6 +174,8 @@ SENSORS = (
         native_unit_of_measurement=UnitOfLength.MILES,
         device_class=SensorDeviceClass.DISTANCE,
         state_class=SensorStateClass.MEASUREMENT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=0,
         value_fn=_km_to_miles,
     ),
     BMWSensorEntityDescription(
@@ -147,6 +186,7 @@ SENSORS = (
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
         value_fn=_float_round,
     ),
     BMWSensorEntityDescription(
@@ -157,6 +197,7 @@ SENSORS = (
         native_unit_of_measurement=UnitOfElectricPotential.VOLT,
         device_class=SensorDeviceClass.VOLTAGE,
         state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=2,
         value_fn=_float_round,
     ),
     BMWSensorEntityDescription(
@@ -167,6 +208,7 @@ SENSORS = (
         native_unit_of_measurement=PERCENTAGE,
         device_class=SensorDeviceClass.BATTERY,
         state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
         value_fn=_int_val,
     ),
     BMWSensorEntityDescription(
@@ -174,6 +216,7 @@ SENSORS = (
         descriptor="vehicle.electricalSystem.battery.serviceDemand.replace",
         name="12V Battery Health",
         icon="mdi:battery-heart",
+        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     BMWSensorEntityDescription(
         key="tyre_fl_pressure",
@@ -183,6 +226,7 @@ SENSORS = (
         native_unit_of_measurement=UnitOfPressure.BAR,
         device_class=SensorDeviceClass.PRESSURE,
         state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=2,
         value_fn=_kpa_to_bar,
     ),
     BMWSensorEntityDescription(
@@ -193,6 +237,7 @@ SENSORS = (
         native_unit_of_measurement=UnitOfPressure.BAR,
         device_class=SensorDeviceClass.PRESSURE,
         state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=2,
         value_fn=_kpa_to_bar,
     ),
     BMWSensorEntityDescription(
@@ -203,6 +248,7 @@ SENSORS = (
         native_unit_of_measurement=UnitOfPressure.BAR,
         device_class=SensorDeviceClass.PRESSURE,
         state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=2,
         value_fn=_kpa_to_bar,
     ),
     BMWSensorEntityDescription(
@@ -213,6 +259,7 @@ SENSORS = (
         native_unit_of_measurement=UnitOfPressure.BAR,
         device_class=SensorDeviceClass.PRESSURE,
         state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=2,
         value_fn=_kpa_to_bar,
     ),
     BMWSensorEntityDescription(
@@ -222,6 +269,8 @@ SENSORS = (
         icon="mdi:tire",
         native_unit_of_measurement=UnitOfPressure.BAR,
         device_class=SensorDeviceClass.PRESSURE,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=2,
         value_fn=_kpa_to_bar,
     ),
     BMWSensorEntityDescription(
@@ -231,6 +280,8 @@ SENSORS = (
         icon="mdi:tire",
         native_unit_of_measurement=UnitOfPressure.BAR,
         device_class=SensorDeviceClass.PRESSURE,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=2,
         value_fn=_kpa_to_bar,
     ),
     BMWSensorEntityDescription(
@@ -240,6 +291,8 @@ SENSORS = (
         icon="mdi:tire",
         native_unit_of_measurement=UnitOfPressure.BAR,
         device_class=SensorDeviceClass.PRESSURE,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=2,
         value_fn=_kpa_to_bar,
     ),
     BMWSensorEntityDescription(
@@ -249,6 +302,8 @@ SENSORS = (
         icon="mdi:tire",
         native_unit_of_measurement=UnitOfPressure.BAR,
         device_class=SensorDeviceClass.PRESSURE,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=2,
         value_fn=_kpa_to_bar,
     ),
     BMWSensorEntityDescription(
@@ -259,6 +314,7 @@ SENSORS = (
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
         value_fn=_float_round,
     ),
     BMWSensorEntityDescription(
@@ -269,6 +325,7 @@ SENSORS = (
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
         value_fn=_float_round,
     ),
     BMWSensorEntityDescription(
@@ -279,6 +336,7 @@ SENSORS = (
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
         value_fn=_float_round,
     ),
     BMWSensorEntityDescription(
@@ -289,6 +347,7 @@ SENSORS = (
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
         value_fn=_float_round,
     ),
     BMWSensorEntityDescription(
@@ -299,6 +358,7 @@ SENSORS = (
         native_unit_of_measurement=UnitOfLength.MILES,
         device_class=SensorDeviceClass.DISTANCE,
         state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
         value_fn=_km_to_miles,
     ),
     BMWSensorEntityDescription(
@@ -306,18 +366,22 @@ SENSORS = (
         descriptor="vehicle.status.serviceTime.yellow",
         name="Service Due Date",
         icon="mdi:calendar-wrench",
+        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     BMWSensorEntityDescription(
         key="condition_based_services",
         descriptor="vehicle.status.conditionBasedServices",
         name="Condition Based Services",
         icon="mdi:clipboard-check",
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=_parse_cbs,
     ),
     BMWSensorEntityDescription(
         key="check_control",
         descriptor="vehicle.status.checkControlMessages",
         name="Check Control Messages",
         icon="mdi:alert-circle",
+        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     BMWSensorEntityDescription(
         key="alarm_arm_status",
@@ -345,6 +409,7 @@ SENSORS = (
         native_unit_of_measurement=UnitOfSpeed.MILES_PER_HOUR,
         device_class=SensorDeviceClass.SPEED,
         state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
         value_fn=_kmh_to_mph,
     ),
     BMWSensorEntityDescription(
@@ -354,6 +419,7 @@ SENSORS = (
         icon="mdi:map-marker-path",
         native_unit_of_measurement=UnitOfLength.MILES,
         device_class=SensorDeviceClass.DISTANCE,
+        suggested_display_precision=1,
         value_fn=_km_to_miles,
     ),
     BMWSensorEntityDescription(
@@ -361,6 +427,7 @@ SENSORS = (
         descriptor="vehicle.trip.segment.end.time",
         name="Last Trip Time",
         icon="mdi:clock-end",
+        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     BMWSensorEntityDescription(
         key="driving_score_acceleration",
@@ -368,6 +435,7 @@ SENSORS = (
         name="Driving Score Acceleration",
         icon="mdi:star",
         state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
         value_fn=_float_round,
     ),
     BMWSensorEntityDescription(
@@ -376,6 +444,7 @@ SENSORS = (
         name="Driving Score Braking",
         icon="mdi:star",
         state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
         value_fn=_float_round,
     ),
     BMWSensorEntityDescription(
@@ -386,6 +455,7 @@ SENSORS = (
         native_unit_of_measurement=UnitOfLength.MILES,
         device_class=SensorDeviceClass.DISTANCE,
         state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
         value_fn=_km_to_miles,
     ),
     BMWSensorEntityDescription(
@@ -396,6 +466,7 @@ SENSORS = (
         native_unit_of_measurement=UnitOfLength.MILES,
         device_class=SensorDeviceClass.DISTANCE,
         state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
         value_fn=_km_to_miles,
     ),
     BMWSensorEntityDescription(
@@ -403,12 +474,14 @@ SENSORS = (
         descriptor="vehicle.electronicControlUnit.diagnosticTroubleCodes.raw",
         name="Fault Codes DTC",
         icon="mdi:wrench-check",
+        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     BMWSensorEntityDescription(
         key="sim_status",
         descriptor="vehicle.sim.status",
         name="SIM Status",
         icon="mdi:sim",
+        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     BMWSensorEntityDescription(
         key="tyre_diagnosis",
@@ -473,6 +546,25 @@ class BMWSensorEntity(CoordinatorEntity, SensorEntity):
         if desc.source == "tyre_diagnosis":
             td = self._vin_data().get("tyre_diagnosis", {})
             return {k: v for k, v in td.items() if k != "overallStatus"} if td else {}
+
+        # For CBS, parse the items list into named attributes
+        if desc.key == "condition_based_services":
+            telemetry = self._vin_data().get("telemetry", {})
+            entry = telemetry.get(desc.descriptor, {})
+            raw = entry.get("value")
+            if raw:
+                try:
+                    items = json.loads(raw) if isinstance(raw, str) else raw
+                    if isinstance(items, list):
+                        result = {}
+                        for item in items:
+                            name = item.get("type") or item.get("name") or str(items.index(item))
+                            result[name] = item.get("status", "unknown")
+                        return result
+                except (ValueError, TypeError, AttributeError):
+                    pass
+            return {}
+
         telemetry = self._vin_data().get("telemetry", {})
         entry = telemetry.get(desc.descriptor, {})
         return {k: v for k, v in entry.items() if k != "value" and v is not None}

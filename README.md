@@ -4,6 +4,8 @@ A custom Home Assistant integration for BMW vehicles using the official [BMW Car
 
 Designed for **petrol/diesel (ICE) BMW vehicles** in the UK/EU. All distances and speeds are displayed in **miles**. Polls the BMW REST API every 30 minutes (within the free 50 calls/day limit).
 
+**v1.0.2** — Adds display precision, diagnostic entity categories, CBS service item parsing, per-VIN partial failure resilience, and a Home Assistant repairs notification on auth failure.
+
 ---
 
 ## What You Get
@@ -27,7 +29,7 @@ Designed for **petrol/diesel (ICE) BMW vehicles** in the UK/EU. All distances an
 | Average Speed | Trip average speed (mph) |
 | Next Service Distance | Miles until next service |
 | Service Due Date | Date of next service |
-| Condition Based Services | CBS status messages |
+| Condition Based Services | Count of pending CBS items (0 = all clear); individual service items in attributes |
 | Check Control Messages | Active warning messages |
 | Door Lock Status | Overall lock state |
 | Door Status | Overall door open/closed state |

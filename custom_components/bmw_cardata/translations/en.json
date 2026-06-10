@@ -24,5 +24,11 @@
       "no_vehicles": "No vehicles found on this BMW account.",
       "cannot_connect": "Could not connect to BMW CarData API."
     }
+  },
+  "issues": {
+    "auth_failed": {
+      "title": "BMW CarData authentication failed",
+      "description": "The BMW CarData integration could not authenticate. Your access token may have expired.\n\nPlease remove and re-add the integration from Settings → Devices & Services → BMW CarData."
+    }
   }
 }

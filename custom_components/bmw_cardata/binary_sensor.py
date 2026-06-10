@@ -10,6 +10,7 @@ from homeassistant.components.binary_sensor import (
     BinarySensorEntityDescription,
 )
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -148,6 +149,7 @@ BINARY_SENSORS = (
         name="12V Battery Recharge Needed",
         device_class=BinarySensorDeviceClass.BATTERY_CHARGING,
         icon="mdi:battery-low",
+        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     BMWBinarySensorEntityDescription(
         key="deep_sleep",
@@ -155,6 +157,7 @@ BINARY_SENSORS = (
         name="Deep Sleep Mode",
         device_class=BinarySensorDeviceClass.POWER,
         icon="mdi:sleep",
+        entity_category=EntityCategory.DIAGNOSTIC,
     ),
 )
 

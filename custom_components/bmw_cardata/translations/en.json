@@ -1,0 +1,28 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "BMW CarData – Enter Client ID",
+        "description": "Enter your BMW CarData Client ID from the portal.\n\nTo get one: visit {portal_url}, select your vehicle, then generate a Client ID under the 'CarData API' section.",
+        "data": {
+          "client_id": "Client ID"
+        }
+      },
+      "authorize": {
+        "title": "BMW CarData – Authorise Device",
+        "description": "**Open this link in your browser and enter the code below:**\n\n🔗 [{verification_url}]({verification_url})\n\n**Code:** `{user_code}`\n\nOnce you have approved the device on the BMW page, click **Submit**."
+      }
+    },
+    "error": {
+      "invalid_client_id": "Client ID looks invalid – it should be a UUID from the BMW portal.",
+      "cannot_connect": "Could not connect to BMW. Check your Client ID and internet connection.",
+      "authorization_pending": "You haven't approved the device yet. Visit the URL, enter the code, and click Submit again.",
+      "auth_failed": "Authorisation failed or expired. Please start again."
+    },
+    "abort": {
+      "already_configured": "BMW CarData is already configured for this vehicle.",
+      "no_vehicles": "No vehicles found on this BMW account.",
+      "cannot_connect": "Could not connect to BMW CarData API."
+    }
+  }
+}

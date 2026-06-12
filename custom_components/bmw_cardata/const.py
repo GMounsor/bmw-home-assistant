@@ -40,6 +40,18 @@ DESCRIPTORS = [
     # Doors & locks
     "vehicle.cabin.door.status",
     "vehicle.cabin.door.lock.status",
+    "vehicle.cabin.door.row1.driver.isOpen",
+    "vehicle.cabin.door.row1.passenger.isOpen",
+    "vehicle.cabin.door.row2.driver.isOpen",
+    "vehicle.cabin.door.row2.passenger.isOpen",
+    # Windows
+    "vehicle.cabin.window.row1.driver.status",
+    "vehicle.cabin.window.row1.passenger.status",
+    "vehicle.cabin.window.row2.driver.status",
+    "vehicle.cabin.window.row2.passenger.status",
+    # Bonnet & boot
+    "vehicle.body.hood.isOpen",
+    "vehicle.body.trunk.isOpen",
     # Service
     "vehicle.status.serviceDistance.next",
     "vehicle.status.serviceTime.yellow",
@@ -48,12 +60,27 @@ DESCRIPTORS = [
     # 12V battery
     "vehicle.electricalSystem.battery.voltage",
     "vehicle.electricalSystem.battery.stateOfCharge",
+    "vehicle.electricalSystem.battery.serviceDemand.replace",
+    "vehicle.electricalSystem.battery.serviceDemand.recharge",
     # Tyres
     "vehicle.chassis.axle.row1.wheel.left.tire.pressure",
     "vehicle.chassis.axle.row1.wheel.right.tire.pressure",
     "vehicle.chassis.axle.row2.wheel.left.tire.pressure",
     "vehicle.chassis.axle.row2.wheel.right.tire.pressure",
+    # Engine & ignition
+    "vehicle.drivetrain.engine.isActive",
+    "vehicle.drivetrain.engine.isIgnitionOn",
+    # Motion & lights
+    "vehicle.isMoving",
+    "vehicle.body.lights.isRunningOn",
+    # Alarm
+    "vehicle.vehicle.antiTheftAlarmSystem.alarm.isOn",
+    "vehicle.vehicle.antiTheftAlarmSystem.alarm.armStatus",
+    # Deep sleep
+    "vehicle.vehicle.deepSleepModeActive",
 ]
 
-CONTAINER_NAME = "home_assistant_ice"
+# Increment this name whenever the descriptor list changes so HA automatically
+# creates a new container (with the updated descriptors) on next restart.
+CONTAINER_NAME = "home_assistant_ice_v3"
 CONTAINER_PURPOSE = "Home Assistant BMW CarData integration"

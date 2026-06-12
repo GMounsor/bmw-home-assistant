@@ -7,6 +7,7 @@ import aiohttp
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
+from .api import BMWCarDataAPI
 from .auth import TokenData
 from .const import (
     CONF_ACCESS_TOKEN,
@@ -36,12 +37,28 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     session = aiohttp.ClientSession()
 
+    # Refresh the container on every startup so descriptor-list changes
+    # (signalled by a new CONTAINER_NAME) are picked up without the user
+    # having to remove and re-add the integration.
+    api = BMWCarDataAPI(session, data[CONF_CLIENT_ID], token)
+    try:
+        container_id = await api.get_or_create_container()
+    except Exception as err:  # noqa: BLE001
+        _LOGGER.warning("Could not refresh container on startup, using stored ID: %s", err)
+        container_id = data[CONF_CONTAINER_ID]
+
+    if container_id != data.get(CONF_CONTAINER_ID):
+        _LOGGER.info("Container ID updated: %s -> %s", data.get(CONF_CONTAINER_ID), container_id)
+        hass.config_entries.async_update_entry(
+            entry, data={**data, CONF_CONTAINER_ID: container_id}
+        )
+
     coordinator = BMWCoordinator(
         hass=hass,
         session=session,
         client_id=data[CONF_CLIENT_ID],
         token=token,
-        container_id=data[CONF_CONTAINER_ID],
+        container_id=container_id,
         vins=data[CONF_VINS],
     )
 

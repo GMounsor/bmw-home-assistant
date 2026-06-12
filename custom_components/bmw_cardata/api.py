@@ -49,8 +49,8 @@ class BMWCarDataAPI:
                 raise PermissionError("BMW API 401 - token revoked")
             if resp.status == 403:
                 body = await resp.text()
-                _LOGGER.error("BMW API 403 for %s - CarData API not enabled in portal. Response: %s", url, body)
-                raise PermissionError(f"BMW API 403 - CarData API access not enabled: {body}")
+                _LOGGER.error("BMW API 403 for %s - CarData API not enabled. Response: %s", url, body)
+                raise PermissionError(f"BMW API 403 - access not enabled: {body}")
             if resp.status == 429:
                 raise RuntimeError("BMW API rate limit hit (50 calls/day exceeded)")
             if not resp.ok:
@@ -93,16 +93,27 @@ class BMWCarDataAPI:
         _LOGGER.info("Created CarData container: %s", container_id)
         return container_id
 
+    async def delete_container(self, container_id):
+        await self._ensure_token()
+        url = f"{API_BASE_URL}/customers/containers/{container_id}"
+        _LOGGER.debug("DELETE %s", url)
+        async with self._session.delete(url, headers=self._auth_headers()) as resp:
+            if not resp.ok:
+                body = await resp.text()
+                _LOGGER.warning("DELETE container %s returned %s: %s", container_id, resp.status, body)
+
     async def get_or_create_container(self):
+        """Return (or create) the container matching CONTAINER_NAME.
+
+        Only reuses a container whose name exactly matches CONTAINER_NAME so
+        that renaming the constant triggers recreation with updated descriptors.
+        """
         containers = await self.list_containers()
         _LOGGER.debug("Existing containers: %s", containers)
-
         for container in containers:
-            if container.get("state") == "ACTIVE":
-                _LOGGER.debug("Reusing existing container %s", container.get("containerId"))
+            if container.get("state") == "ACTIVE" and container.get("name") == CONTAINER_NAME:
+                _LOGGER.debug("Reusing container %s (%s)", CONTAINER_NAME, container.get("containerId"))
                 return container["containerId"]
-
-        # Try with descriptor list first
         try:
             return await self.create_container(descriptors=DESCRIPTORS)
         except aiohttp.ClientResponseError as err:
@@ -110,11 +121,8 @@ class BMWCarDataAPI:
                 raise
             _LOGGER.warning(
                 "Container creation with descriptor list rejected (400) - "
-                "retrying without descriptors (BMW will use portal-configured set). "
-                "Error: %s", err
+                "retrying without descriptors. Error: %s", err
             )
-
-        # Fallback: omit technicalDescriptors entirely
         return await self.create_container(descriptors=None)
 
     async def get_telematics(self, vin, container_id):
@@ -122,7 +130,21 @@ class BMWCarDataAPI:
             f"/customers/vehicles/{vin}/telematicData",
             params={"containerId": container_id},
         )
-        return data.get("telematicData", {})
+        telematics = data.get("telematicData", {})
+        _LOGGER.debug(
+            "Raw telematicData type=%s sample=%s",
+            type(telematics).__name__,
+            str(telematics)[:500],
+        )
+        # BMW returns a list: [{descriptor, value, unit, timestamp}, ...]
+        # Convert to dict keyed by descriptor for sensor lookups
+        if isinstance(telematics, list):
+            return {
+                item["descriptor"]: {k: v for k, v in item.items() if k != "descriptor"}
+                for item in telematics
+                if "descriptor" in item
+            }
+        return telematics
 
     async def get_tyre_diagnosis(self, vin):
         try:

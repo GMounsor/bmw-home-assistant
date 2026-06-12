@@ -11,6 +11,7 @@ from .api import BMWCarDataAPI
 from .auth import TokenData
 from .const import (
     CONF_ACCESS_TOKEN,
+    CONF_ALL_VINS,
     CONF_CLIENT_ID,
     CONF_CONTAINER_ID,
     CONF_REFRESH_TOKEN,
@@ -59,13 +60,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             entry, data={**data, CONF_CONTAINER_ID: container_id}
         )
 
+    # Active VINs: prefer options (set via options flow) over initial data
+    active_vins = entry.options.get(CONF_VINS, data[CONF_VINS])
+
     coordinator = BMWCoordinator(
         hass=hass,
         session=session,
         client_id=data[CONF_CLIENT_ID],
         token=token,
         container_id=container_id,
-        vins=data[CONF_VINS],
+        vins=active_vins,
     )
 
     try:

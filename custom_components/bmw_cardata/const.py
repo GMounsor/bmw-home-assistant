@@ -17,15 +17,22 @@ CONF_REFRESH_TOKEN = "refresh_token"
 CONF_TOKEN_EXPIRES_AT = "token_expires_at"
 CONF_CONTAINER_ID = "container_id"
 CONF_VINS = "vins"
+CONF_ALL_VINS = "all_vins"  # all VINs discovered at setup, used by options flow
 
-SCAN_INTERVAL_MINUTES = 30
+# BMW quota: 50 API calls/day per container. Each poll uses 1 call per VIN.
+# Intervals chosen to stay safely under 50 calls/day including housekeeping.
+SCAN_INTERVAL_BY_VIN_COUNT = {
+    1: 35,   # ~41 polls/day
+    2: 65,   # ~22 polls/day
+    3: 100,  # ~14 polls/day
+}
+SCAN_INTERVAL_DEFAULT = 120  # 4+ VINs: ~12 polls/day
+
 TYRE_DIAGNOSIS_REFRESH_HOURS = 23
 TOKEN_REFRESH_BUFFER_SECONDS = 300
 
-# Core descriptors known to be supported by the BMW CarData API.
-# These are used as a hint when creating the telemetry container.
-# If BMW rejects them (CU-402), the container is created without specifying
-# descriptors and BMW uses whatever the user configured in the portal.
+# Known-valid descriptors for container creation.
+# Increment CONTAINER_NAME when this list changes to force container recreation.
 DESCRIPTORS = [
     # Odometer & range
     "vehicle.vehicle.travelledDistance",
@@ -80,7 +87,5 @@ DESCRIPTORS = [
     "vehicle.vehicle.deepSleepModeActive",
 ]
 
-# Increment this name whenever the descriptor list changes so HA automatically
-# creates a new container (with the updated descriptors) on next restart.
 CONTAINER_NAME = "home_assistant_ice_v3"
 CONTAINER_PURPOSE = "Home Assistant BMW CarData integration"

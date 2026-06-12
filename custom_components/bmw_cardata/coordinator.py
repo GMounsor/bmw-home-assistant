@@ -21,7 +21,8 @@ from .const import (
     CONF_TOKEN_EXPIRES_AT,
     CONF_VINS,
     DOMAIN,
-    SCAN_INTERVAL_MINUTES,
+    SCAN_INTERVAL_BY_VIN_COUNT,
+    SCAN_INTERVAL_DEFAULT,
     TYRE_DIAGNOSIS_REFRESH_HOURS,
 )
 
@@ -40,11 +41,13 @@ class BMWCoordinator(DataUpdateCoordinator):
     """
 
     def __init__(self, hass, session, client_id, token, container_id, vins):
+        interval = SCAN_INTERVAL_BY_VIN_COUNT.get(len(vins), SCAN_INTERVAL_DEFAULT)
+        _LOGGER.debug("Poll interval: %d min for %d VIN(s)", interval, len(vins))
         super().__init__(
             hass,
             _LOGGER,
             name=DOMAIN,
-            update_interval=timedelta(minutes=SCAN_INTERVAL_MINUTES),
+            update_interval=timedelta(minutes=interval),
         )
         self._session = session
         self._client_id = client_id

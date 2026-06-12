@@ -14,6 +14,7 @@ from .api import BMWCarDataAPI
 from .auth import DeviceFlowData, TokenData, initiate_device_flow, poll_for_token
 from .const import (
     CONF_ACCESS_TOKEN,
+    CONF_ALL_VINS,
     CONF_CLIENT_ID,
     CONF_CONTAINER_ID,
     CONF_REFRESH_TOKEN,
@@ -29,9 +30,9 @@ class BMWCarDataConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle BMW CarData config flow.
 
     Steps:
-        user       → Enter Client ID
-        authorize  → Visit verification URL, then click Submit
-        (internal) → Poll for token, discover VINs, create entry
+        user        → Enter Client ID
+        authorize   → Visit verification URL, then click Submit
+        select_vins → Choose which vehicles to monitor
     """
 
     VERSION = 1
@@ -40,6 +41,9 @@ class BMWCarDataConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._client_id: str = ""
         self._device_flow: DeviceFlowData | None = None
         self._session: aiohttp.ClientSession | None = None
+        self._token: TokenData | None = None
+        self._all_vins: list[str] = []
+        self._container_id: str = ""
 
     # ── Step 1: Client ID ─────────────────────────────────────────────────────
 
@@ -51,7 +55,6 @@ class BMWCarDataConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             self._client_id = user_input[CONF_CLIENT_ID].strip()
 
-            # Basic UUID-ish validation
             if not self._client_id or len(self._client_id) < 8:
                 errors[CONF_CLIENT_ID] = "invalid_client_id"
             else:
@@ -86,7 +89,6 @@ class BMWCarDataConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return await self.async_step_user()
 
         if user_input is not None:
-            # User clicked Submit – try polling for token once
             try:
                 token = await poll_for_token(
                     self._session,
@@ -103,11 +105,12 @@ class BMWCarDataConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors["base"] = "authorization_pending"
 
             if token is not None:
-                return await self._create_entry(token)
+                self._token = token
+                return await self._discover_vehicles()
 
         return self.async_show_form(
             step_id="authorize",
-            data_schema=vol.Schema({}),  # No inputs – just a Submit button
+            data_schema=vol.Schema({}),
             errors=errors,
             description_placeholders={
                 "user_code": flow.user_code,
@@ -115,22 +118,22 @@ class BMWCarDataConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             },
         )
 
-    # ── Entry creation ────────────────────────────────────────────────────────
+    # ── Step 3: Discover vehicles & select VINs ───────────────────────────────
 
-    async def _create_entry(self, token: TokenData) -> FlowResult:
-        """Discover VINs and container, then create the config entry."""
-        api = BMWCarDataAPI(self._session, self._client_id, token)
+    async def _discover_vehicles(self) -> FlowResult:
+        """Fetch VIN list and container, then show VIN selection."""
+        api = BMWCarDataAPI(self._session, self._client_id, self._token)
 
         try:
             mappings = await api.get_vehicle_mappings()
         except PermissionError as err:
-            _LOGGER.error("BMW CarData API access denied – CarData API may not be activated in the BMW portal: %s", err)
+            _LOGGER.error("BMW API 403 during setup: %s", err)
             if self._session:
                 await self._session.close()
             return self.async_abort(reason="api_not_enabled")
         except RuntimeError as err:
             if "rate limit" in str(err).lower():
-                _LOGGER.error("BMW API rate limit reached during setup: %s", err)
+                _LOGGER.error("BMW rate limit during setup: %s", err)
                 if self._session:
                     await self._session.close()
                 return self.async_abort(reason="rate_limit")
@@ -144,26 +147,31 @@ class BMWCarDataConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 await self._session.close()
             return self.async_abort(reason="cannot_connect")
 
-        _LOGGER.debug("Vehicle mappings response: %s", mappings)
-
-        # Accept any VIN regardless of mapping type
-        vins = [m["vin"] for m in mappings if m.get("vin")]
-
-        if not vins:
-            _LOGGER.error("No vehicles found in mappings: %s", mappings)
+        self._all_vins = [m["vin"] for m in mappings if m.get("vin")]
+        if not self._all_vins:
             if self._session:
                 await self._session.close()
             return self.async_abort(reason="no_vehicles")
 
         try:
-            container_id = await api.get_or_create_container()
+            self._container_id = await api.get_or_create_container()
+            self._token = api.get_current_token()
         except PermissionError as err:
-            _LOGGER.error("BMW CarData API access denied creating container – check portal permissions: %s", err)
+            _LOGGER.error("BMW API 403 creating container: %s", err)
             if self._session:
                 await self._session.close()
             return self.async_abort(reason="api_not_enabled")
+        except RuntimeError as err:
+            if "rate limit" in str(err).lower():
+                if self._session:
+                    await self._session.close()
+                return self.async_abort(reason="rate_limit")
+            _LOGGER.exception("Failed to create container: %s", err)
+            if self._session:
+                await self._session.close()
+            return self.async_abort(reason="cannot_connect")
         except Exception as err:  # noqa: BLE001
-            _LOGGER.exception("Failed to create telemetry container: %s", err)
+            _LOGGER.exception("Failed to create container: %s", err)
             if self._session:
                 await self._session.close()
             return self.async_abort(reason="cannot_connect")
@@ -171,18 +179,84 @@ class BMWCarDataConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if self._session:
             await self._session.close()
 
-        # Use first VIN to generate a unique entry ID
-        await self.async_set_unique_id(vins[0])
-        self._abort_if_unique_id_configured()
+        return await self.async_step_select_vins()
 
-        return self.async_create_entry(
-            title=f"BMW ({', '.join(vins)})",
-            data={
-                CONF_CLIENT_ID: self._client_id,
-                CONF_ACCESS_TOKEN: token.access_token,
-                CONF_REFRESH_TOKEN: token.refresh_token,
-                CONF_TOKEN_EXPIRES_AT: token.expires_at,
-                CONF_CONTAINER_ID: container_id,
-                CONF_VINS: vins,
-            },
+    async def async_step_select_vins(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Let the user choose which VINs to monitor."""
+        if user_input is not None:
+            selected = [vin for vin in self._all_vins if user_input.get(vin)]
+            if not selected:
+                return self.async_show_form(
+                    step_id="select_vins",
+                    data_schema=self._vin_schema(self._all_vins),
+                    errors={"base": "no_vins_selected"},
+                )
+
+            await self.async_set_unique_id(self._all_vins[0])
+            self._abort_if_unique_id_configured()
+
+            return self.async_create_entry(
+                title=f"BMW ({', '.join(selected)})",
+                data={
+                    CONF_CLIENT_ID: self._client_id,
+                    CONF_ACCESS_TOKEN: self._token.access_token,
+                    CONF_REFRESH_TOKEN: self._token.refresh_token,
+                    CONF_TOKEN_EXPIRES_AT: self._token.expires_at,
+                    CONF_CONTAINER_ID: self._container_id,
+                    CONF_ALL_VINS: self._all_vins,   # all discovered VINs (for options flow)
+                    CONF_VINS: selected,              # currently active VINs
+                },
+            )
+
+        return self.async_show_form(
+            step_id="select_vins",
+            data_schema=self._vin_schema(self._all_vins, default_all=True),
         )
+
+    @staticmethod
+    def _vin_schema(vins: list[str], default_all: bool = True) -> vol.Schema:
+        return vol.Schema({
+            vol.Optional(vin, default=default_all): bool
+            for vin in vins
+        })
+
+    @staticmethod
+    def async_get_options_flow(config_entry):
+        return BMWCarDataOptionsFlow(config_entry)
+
+
+class BMWCarDataOptionsFlow(config_entries.OptionsFlow):
+    """Allow changing the active VIN set after initial setup."""
+
+    def __init__(self, config_entry) -> None:
+        self._config_entry = config_entry
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        all_vins = self._config_entry.data.get(CONF_ALL_VINS, self._config_entry.data.get(CONF_VINS, []))
+        active_vins = self._config_entry.options.get(CONF_VINS, self._config_entry.data.get(CONF_VINS, []))
+
+        if user_input is not None:
+            selected = [vin for vin in all_vins if user_input.get(vin)]
+            if not selected:
+                return self.async_show_form(
+                    step_id="init",
+                    data_schema=self._vin_schema(all_vins, active_vins),
+                    errors={"base": "no_vins_selected"},
+                )
+            return self.async_create_entry(data={CONF_VINS: selected})
+
+        return self.async_show_form(
+            step_id="init",
+            data_schema=self._vin_schema(all_vins, active_vins),
+        )
+
+    @staticmethod
+    def _vin_schema(all_vins: list[str], active_vins: list[str]) -> vol.Schema:
+        return vol.Schema({
+            vol.Optional(vin, default=(vin in active_vins)): bool
+            for vin in all_vins
+        })

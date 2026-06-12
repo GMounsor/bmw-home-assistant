@@ -124,10 +124,20 @@ class BMWCarDataConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         try:
             mappings = await api.get_vehicle_mappings()
         except PermissionError as err:
-            _LOGGER.error("BMW CarData API access denied (403) – CarData API may not be activated in the BMW portal: %s", err)
+            _LOGGER.error("BMW CarData API access denied – CarData API may not be activated in the BMW portal: %s", err)
             if self._session:
                 await self._session.close()
             return self.async_abort(reason="api_not_enabled")
+        except RuntimeError as err:
+            if "rate limit" in str(err).lower():
+                _LOGGER.error("BMW API rate limit reached during setup: %s", err)
+                if self._session:
+                    await self._session.close()
+                return self.async_abort(reason="rate_limit")
+            _LOGGER.exception("Failed to fetch vehicle mappings: %s", err)
+            if self._session:
+                await self._session.close()
+            return self.async_abort(reason="cannot_connect")
         except Exception as err:  # noqa: BLE001
             _LOGGER.exception("Failed to fetch vehicle mappings: %s", err)
             if self._session:

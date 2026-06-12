@@ -49,6 +49,10 @@ class BMWCarDataAPI:
                 raise PermissionError("BMW API 401 - token revoked")
             if resp.status == 403:
                 body = await resp.text()
+                # BMW returns rate-limit errors as 403 with CU-429 in the body
+                if "CU-429" in body:
+                    _LOGGER.error("BMW API rate limit reached (50 calls/day). Response: %s", body)
+                    raise RuntimeError("BMW API rate limit reached (50 calls/day). Try again tomorrow.")
                 _LOGGER.error("BMW API 403 for %s - CarData API not enabled. Response: %s", url, body)
                 raise PermissionError(f"BMW API 403 - access not enabled: {body}")
             if resp.status == 429:

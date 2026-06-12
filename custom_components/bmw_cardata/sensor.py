@@ -35,8 +35,6 @@ KM_TO_MILES = 0.621371
 
 
 def _km_to_miles(v):
-    if v is None:
-        return None
     try:
         return round(float(v) * KM_TO_MILES, 1)
     except (ValueError, TypeError):
@@ -44,8 +42,6 @@ def _km_to_miles(v):
 
 
 def _kmh_to_mph(v):
-    if v is None:
-        return None
     try:
         return round(float(v) * KM_TO_MILES, 1)
     except (ValueError, TypeError):
@@ -53,8 +49,6 @@ def _kmh_to_mph(v):
 
 
 def _kpa_to_bar(v):
-    if v is None:
-        return None
     try:
         return round(float(v) / 100, 2)
     except (ValueError, TypeError):
@@ -62,8 +56,6 @@ def _kpa_to_bar(v):
 
 
 def _float_round(v):
-    if v is None:
-        return None
     try:
         return round(float(v), 1)
     except (ValueError, TypeError):
@@ -71,8 +63,6 @@ def _float_round(v):
 
 
 def _int_val(v):
-    if v is None:
-        return None
     try:
         return int(float(v))
     except (ValueError, TypeError):
@@ -80,7 +70,6 @@ def _int_val(v):
 
 
 def _parse_cbs(v):
-    """Return count of non-OK CBS items, or 0 if all clear."""
     if v is None:
         return None
     try:
@@ -101,17 +90,100 @@ class BMWSensorEntityDescription(SensorEntityDescription):
 
 
 SENSORS = (
+    # Distance sensors: device_class omitted so HA does not auto-convert miles -> km
     BMWSensorEntityDescription(
         key="mileage",
         descriptor="vehicle.vehicle.travelledDistance",
         name="Mileage",
         icon="mdi:counter",
         native_unit_of_measurement=UnitOfLength.MILES,
-        device_class=SensorDeviceClass.DISTANCE,
         state_class=SensorStateClass.TOTAL_INCREASING,
         suggested_display_precision=0,
         value_fn=_km_to_miles,
     ),
+    BMWSensorEntityDescription(
+        key="remaining_range",
+        descriptor="vehicle.cabin.infotainment.navigation.remainingRange",
+        name="Remaining Range",
+        icon="mdi:map-marker-distance",
+        native_unit_of_measurement=UnitOfLength.MILES,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
+        value_fn=_km_to_miles,
+    ),
+    BMWSensorEntityDescription(
+        key="last_remaining_range",
+        descriptor="vehicle.drivetrain.lastRemainingRange",
+        name="Last Reported Range",
+        icon="mdi:map-marker-distance",
+        native_unit_of_measurement=UnitOfLength.MILES,
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=0,
+        value_fn=_km_to_miles,
+    ),
+    BMWSensorEntityDescription(
+        key="service_distance",
+        descriptor="vehicle.status.serviceDistance.next",
+        name="Next Service Distance",
+        icon="mdi:wrench-clock",
+        native_unit_of_measurement=UnitOfLength.MILES,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
+        value_fn=_km_to_miles,
+    ),
+    BMWSensorEntityDescription(
+        key="last_trip_distance",
+        descriptor="vehicle.trip.segment.end.traveledDistance",
+        name="Last Trip Distance",
+        icon="mdi:map-marker-path",
+        native_unit_of_measurement=UnitOfLength.MILES,
+        suggested_display_precision=1,
+        value_fn=_km_to_miles,
+    ),
+    BMWSensorEntityDescription(
+        key="weekly_distance_short",
+        descriptor="vehicle.vehicle.averageWeeklyDistanceShortTerm",
+        name="Weekly Distance Short Term",
+        icon="mdi:road",
+        native_unit_of_measurement=UnitOfLength.MILES,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
+        value_fn=_km_to_miles,
+    ),
+    BMWSensorEntityDescription(
+        key="weekly_distance_long",
+        descriptor="vehicle.vehicle.averageWeeklyDistanceLongTerm",
+        name="Weekly Distance Long Term",
+        icon="mdi:road",
+        native_unit_of_measurement=UnitOfLength.MILES,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
+        value_fn=_km_to_miles,
+    ),
+    BMWSensorEntityDescription(
+        key="lifetime_reference_distance",
+        descriptor="vehicle.drivetrain.fuelSystem.consumptionOverLifeTime.overall.referenceDistance",
+        name="Lifetime Reference Distance",
+        icon="mdi:road",
+        native_unit_of_measurement=UnitOfLength.MILES,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        suggested_display_precision=0,
+        value_fn=_km_to_miles,
+    ),
+    # Speed: device_class omitted to prevent km/h auto-conversion
+    BMWSensorEntityDescription(
+        key="avg_speed",
+        descriptor="vehicle.vehicle.avgSpeed",
+        name="Average Speed",
+        icon="mdi:speedometer",
+        native_unit_of_measurement=UnitOfSpeed.MILES_PER_HOUR,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
+        value_fn=_kmh_to_mph,
+    ),
+    # Fuel
     BMWSensorEntityDescription(
         key="fuel_level",
         descriptor="vehicle.drivetrain.fuelSystem.level",
@@ -143,41 +215,7 @@ SENSORS = (
         suggested_display_precision=1,
         value_fn=_float_round,
     ),
-    BMWSensorEntityDescription(
-        key="lifetime_reference_distance",
-        descriptor="vehicle.drivetrain.fuelSystem.consumptionOverLifeTime.overall.referenceDistance",
-        name="Lifetime Reference Distance",
-        icon="mdi:road",
-        native_unit_of_measurement=UnitOfLength.MILES,
-        device_class=SensorDeviceClass.DISTANCE,
-        state_class=SensorStateClass.TOTAL_INCREASING,
-        entity_category=EntityCategory.DIAGNOSTIC,
-        suggested_display_precision=0,
-        value_fn=_km_to_miles,
-    ),
-    BMWSensorEntityDescription(
-        key="remaining_range",
-        descriptor="vehicle.cabin.infotainment.navigation.remainingRange",
-        name="Remaining Range",
-        icon="mdi:map-marker-distance",
-        native_unit_of_measurement=UnitOfLength.MILES,
-        device_class=SensorDeviceClass.DISTANCE,
-        state_class=SensorStateClass.MEASUREMENT,
-        suggested_display_precision=0,
-        value_fn=_km_to_miles,
-    ),
-    BMWSensorEntityDescription(
-        key="last_remaining_range",
-        descriptor="vehicle.drivetrain.lastRemainingRange",
-        name="Last Reported Range",
-        icon="mdi:map-marker-distance",
-        native_unit_of_measurement=UnitOfLength.MILES,
-        device_class=SensorDeviceClass.DISTANCE,
-        state_class=SensorStateClass.MEASUREMENT,
-        entity_category=EntityCategory.DIAGNOSTIC,
-        suggested_display_precision=0,
-        value_fn=_km_to_miles,
-    ),
+    # Engine
     BMWSensorEntityDescription(
         key="coolant_temp",
         descriptor="vehicle.drivetrain.internalCombustionEngine.engine.ect",
@@ -189,6 +227,7 @@ SENSORS = (
         suggested_display_precision=1,
         value_fn=_float_round,
     ),
+    # 12V Battery
     BMWSensorEntityDescription(
         key="battery_voltage",
         descriptor="vehicle.electricalSystem.battery.voltage",
@@ -218,6 +257,7 @@ SENSORS = (
         icon="mdi:battery-heart",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+    # Tyres
     BMWSensorEntityDescription(
         key="tyre_fl_pressure",
         descriptor="vehicle.chassis.axle.row1.wheel.left.tire.pressure",
@@ -351,16 +391,13 @@ SENSORS = (
         value_fn=_float_round,
     ),
     BMWSensorEntityDescription(
-        key="service_distance",
-        descriptor="vehicle.status.serviceDistance.next",
-        name="Next Service Distance",
-        icon="mdi:wrench-clock",
-        native_unit_of_measurement=UnitOfLength.MILES,
-        device_class=SensorDeviceClass.DISTANCE,
-        state_class=SensorStateClass.MEASUREMENT,
-        suggested_display_precision=0,
-        value_fn=_km_to_miles,
+        key="tyre_diagnosis",
+        descriptor="",
+        source="tyre_diagnosis",
+        name="Tyre Diagnosis",
+        icon="mdi:tire",
     ),
+    # Service & status
     BMWSensorEntityDescription(
         key="service_due_date",
         descriptor="vehicle.status.serviceTime.yellow",
@@ -401,27 +438,7 @@ SENSORS = (
         name="Door Status",
         icon="mdi:car-door",
     ),
-    BMWSensorEntityDescription(
-        key="avg_speed",
-        descriptor="vehicle.vehicle.avgSpeed",
-        name="Average Speed",
-        icon="mdi:speedometer",
-        native_unit_of_measurement=UnitOfSpeed.MILES_PER_HOUR,
-        device_class=SensorDeviceClass.SPEED,
-        state_class=SensorStateClass.MEASUREMENT,
-        suggested_display_precision=0,
-        value_fn=_kmh_to_mph,
-    ),
-    BMWSensorEntityDescription(
-        key="last_trip_distance",
-        descriptor="vehicle.trip.segment.end.traveledDistance",
-        name="Last Trip Distance",
-        icon="mdi:map-marker-path",
-        native_unit_of_measurement=UnitOfLength.MILES,
-        device_class=SensorDeviceClass.DISTANCE,
-        suggested_display_precision=1,
-        value_fn=_km_to_miles,
-    ),
+    # Trip & driving
     BMWSensorEntityDescription(
         key="last_trip_time",
         descriptor="vehicle.trip.segment.end.time",
@@ -447,28 +464,7 @@ SENSORS = (
         suggested_display_precision=1,
         value_fn=_float_round,
     ),
-    BMWSensorEntityDescription(
-        key="weekly_distance_short",
-        descriptor="vehicle.vehicle.averageWeeklyDistanceShortTerm",
-        name="Weekly Distance Short Term",
-        icon="mdi:road",
-        native_unit_of_measurement=UnitOfLength.MILES,
-        device_class=SensorDeviceClass.DISTANCE,
-        state_class=SensorStateClass.MEASUREMENT,
-        suggested_display_precision=0,
-        value_fn=_km_to_miles,
-    ),
-    BMWSensorEntityDescription(
-        key="weekly_distance_long",
-        descriptor="vehicle.vehicle.averageWeeklyDistanceLongTerm",
-        name="Weekly Distance Long Term",
-        icon="mdi:road",
-        native_unit_of_measurement=UnitOfLength.MILES,
-        device_class=SensorDeviceClass.DISTANCE,
-        state_class=SensorStateClass.MEASUREMENT,
-        suggested_display_precision=0,
-        value_fn=_km_to_miles,
-    ),
+    # Diagnostics
     BMWSensorEntityDescription(
         key="dtc",
         descriptor="vehicle.electronicControlUnit.diagnosticTroubleCodes.raw",
@@ -482,13 +478,6 @@ SENSORS = (
         name="SIM Status",
         icon="mdi:sim",
         entity_category=EntityCategory.DIAGNOSTIC,
-    ),
-    BMWSensorEntityDescription(
-        key="tyre_diagnosis",
-        descriptor="",
-        source="tyre_diagnosis",
-        name="Tyre Diagnosis",
-        icon="mdi:tire",
     ),
 )
 
@@ -505,7 +494,6 @@ async def async_setup_entry(hass, entry, async_add_entities):
 
 
 class BMWSensorEntity(CoordinatorEntity, SensorEntity):
-    """A single BMW telemetry sensor."""
 
     def __init__(self, coordinator, vin, description):
         super().__init__(coordinator)
@@ -546,8 +534,6 @@ class BMWSensorEntity(CoordinatorEntity, SensorEntity):
         if desc.source == "tyre_diagnosis":
             td = self._vin_data().get("tyre_diagnosis", {})
             return {k: v for k, v in td.items() if k != "overallStatus"} if td else {}
-
-        # For CBS, parse the items list into named attributes
         if desc.key == "condition_based_services":
             telemetry = self._vin_data().get("telemetry", {})
             entry = telemetry.get(desc.descriptor, {})
@@ -556,15 +542,13 @@ class BMWSensorEntity(CoordinatorEntity, SensorEntity):
                 try:
                     items = json.loads(raw) if isinstance(raw, str) else raw
                     if isinstance(items, list):
-                        result = {}
-                        for item in items:
-                            name = item.get("type") or item.get("name") or str(items.index(item))
-                            result[name] = item.get("status", "unknown")
-                        return result
+                        return {
+                            item.get("type") or item.get("name") or str(i): item.get("status", "unknown")
+                            for i, item in enumerate(items)
+                        }
                 except (ValueError, TypeError, AttributeError):
                     pass
             return {}
-
         telemetry = self._vin_data().get("telemetry", {})
         entry = telemetry.get(desc.descriptor, {})
         return {k: v for k, v in entry.items() if k != "value" and v is not None}

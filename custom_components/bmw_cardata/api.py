@@ -24,12 +24,7 @@ _LOGGER = logging.getLogger(__name__)
 class BMWCarDataAPI:
     """Thin async wrapper around the BMW CarData REST API."""
 
-    def __init__(
-        self,
-        session: aiohttp.ClientSession,
-        client_id: str,
-        token: TokenData,
-    ) -> None:
+    def __init__(self, session: aiohttp.ClientSession, client_id: str, token: TokenData) -> None:
         self._session = session
         self._client_id = client_id
         self._token = token
@@ -45,7 +40,6 @@ class BMWCarDataAPI:
             )
 
     def get_current_token(self) -> TokenData:
-        """Return the current token (possibly freshly refreshed)."""
         return self._token
 
     def _auth_headers(self) -> dict[str, str]:
@@ -54,49 +48,49 @@ class BMWCarDataAPI:
             "Authorization": f"Bearer {self._token.access_token}",
         }
 
-    # ── Low-level request helper ──────────────────────────────────────────────
+    # ── Low-level request helpers ──────────────────────────────────────────────
 
     async def _get(self, path: str, **kwargs: Any) -> Any:
         await self._ensure_token()
         url = f"{API_BASE_URL}{path}"
         _LOGGER.debug("GET %s", url)
-        async with self._session.get(
-            url, headers=self._auth_headers(), **kwargs
-        ) as resp:
+        async with self._session.get(url, headers=self._auth_headers(), **kwargs) as resp:
             if resp.status == 401:
                 raise PermissionError("BMW API returned 401 – token may be revoked")
             if resp.status == 403:
                 body = await resp.text()
-                _LOGGER.error("BMW API returned 403 for %s – CarData API access may not be enabled in the BMW portal. Response: %s", url, body)
-                raise PermissionError(f"BMW API returned 403 – CarData API access not enabled. Response: {body}")
+                _LOGGER.error(
+                    "BMW API returned 403 for %s – CarData API access may not be "
+                    "enabled in the BMW portal. Response: %s", url, body
+                )
+                raise PermissionError(
+                    f"BMW API returned 403 – CarData API access not enabled. Response: {body}"
+                )
             if resp.status == 429:
                 raise RuntimeError("BMW API rate limit hit (50 calls/day exceeded)")
             if not resp.ok:
                 body = await resp.text()
-                _LOGGER.error("BMW API returned %s for %s: %s", resp.status, url, body)
+                _LOGGER.error("BMW API GET %s returned %s: %s", url, resp.status, body)
                 resp.raise_for_status()
             return await resp.json()
 
     async def _post(self, path: str, json_body: Any) -> Any:
         await self._ensure_token()
         url = f"{API_BASE_URL}{path}"
-        _LOGGER.debug("POST %s", url)
-        async with self._session.post(
-            url, json=json_body, headers=self._auth_headers()
-        ) as resp:
+        _LOGGER.debug("POST %s body=%s", url, json_body)
+        async with self._session.post(url, json=json_body, headers=self._auth_headers()) as resp:
             if resp.status == 401:
                 raise PermissionError("BMW API returned 401 – token may be revoked")
-            resp.raise_for_status()
+            if not resp.ok:
+                body = await resp.text()
+                _LOGGER.error("BMW API POST %s returned %s: %s", url, resp.status, body)
+                resp.raise_for_status()
             return await resp.json()
 
-    # ── Vehicle discovery ─────────────────────────────────────────────────────
+    # ── Vehicle discovery ──────────────────────────────────────────────────────
 
     async def get_vehicle_mappings(self) -> list[dict[str, Any]]:
-        """Return the list of VINs mapped to this account.
-
-        Each entry is a VehicleMappingDto: {vin, mappedSince, mappingType}.
-        Only PRIMARY mappings are guaranteed to return telematics data.
-        """
+        """Return the list of VINs mapped to this account."""
         data = await self._get("/customers/vehicles/mappings")
         return data if isinstance(data, list) else []
 
@@ -131,24 +125,35 @@ class BMWCarDataAPI:
     async def get_or_create_container(self) -> str:
         """Return an existing active container ID or create a new one.
 
-        Reuses any existing container named CONTAINER_NAME to avoid wasting
-        the daily API quota on duplicate container creation.
+        Reuses any existing ACTIVE container. If creation with our full
+        descriptor list is rejected (400), retries with an empty list so the
+        integration can still set up — descriptors can be configured in the
+        BMW CarData portal afterward.
         """
         containers = await self.list_containers()
+        _LOGGER.debug("Existing containers: %s", containers)
+
         for container in containers:
-            if (
-                container.get("name") == CONTAINER_NAME
-                and container.get("state") == "ACTIVE"
-            ):
-                _LOGGER.debug("Reusing existing container %s", container["containerId"])
+            if container.get("state") == "ACTIVE":
+                _LOGGER.debug("Reusing existing container %s", container.get("containerId"))
                 return container["containerId"]
-        return await self.create_container()
+
+        # Try with full descriptor list first
+        try:
+            return await self.create_container()
+        except aiohttp.ClientResponseError as err:
+            if err.status == 400:
+                _LOGGER.warning(
+                    "Container creation with full descriptor list rejected (400) – "
+                    "retrying with empty list. Configure descriptors in the BMW portal. "
+                    "Error: %s", err
+                )
+                return await self.create_container(descriptors=[])
+            raise
 
     # ── Telemetry ─────────────────────────────────────────────────────────────
 
-    async def get_telematics(
-        self, vin: str, container_id: str
-    ) -> dict[str, dict[str, str]]:
+    async def get_telematics(self, vin: str, container_id: str) -> dict[str, dict[str, str]]:
         """Fetch latest telemetry for a VIN.
 
         Returns a dict keyed by descriptor ID, each value being
@@ -161,13 +166,11 @@ class BMWCarDataAPI:
         return data.get("telematicData", {})
 
     async def get_tyre_diagnosis(self, vin: str) -> dict[str, Any]:
-        """Fetch Smart Maintenance tyre diagnosis for a VIN.
-
-        Returns per-wheel tyre health, wear, manufacturer, and dimension data.
-        Costs 1 API call — fetched at most once per day by the coordinator.
-        """
+        """Fetch Smart Maintenance tyre diagnosis for a VIN."""
         try:
-            return await self._get(f"/customers/vehicles/{vin}/smartMaintenanceTyreDiagnosis")
+            return await self._get(
+                f"/customers/vehicles/{vin}/smartMaintenanceTyreDiagnosis"
+            )
         except Exception as err:  # noqa: BLE001
             _LOGGER.warning("Tyre diagnosis unavailable for %s: %s", vin, err)
             return {}

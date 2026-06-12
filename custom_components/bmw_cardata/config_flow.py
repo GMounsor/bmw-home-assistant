@@ -123,23 +123,37 @@ class BMWCarDataConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         try:
             mappings = await api.get_vehicle_mappings()
+        except PermissionError as err:
+            _LOGGER.error("BMW CarData API access denied (403) – CarData API may not be activated in the BMW portal: %s", err)
+            if self._session:
+                await self._session.close()
+            return self.async_abort(reason="api_not_enabled")
         except Exception as err:  # noqa: BLE001
-            _LOGGER.exception("Failed to fetch vehicle mappings")
+            _LOGGER.exception("Failed to fetch vehicle mappings: %s", err)
             if self._session:
                 await self._session.close()
             return self.async_abort(reason="cannot_connect")
 
-        vins = [m["vin"] for m in mappings if m.get("mappingType") in ("PRIMARY", None)]
+        _LOGGER.debug("Vehicle mappings response: %s", mappings)
+
+        # Accept any VIN regardless of mapping type
+        vins = [m["vin"] for m in mappings if m.get("vin")]
 
         if not vins:
+            _LOGGER.error("No vehicles found in mappings: %s", mappings)
             if self._session:
                 await self._session.close()
             return self.async_abort(reason="no_vehicles")
 
         try:
             container_id = await api.get_or_create_container()
+        except PermissionError as err:
+            _LOGGER.error("BMW CarData API access denied creating container – check portal permissions: %s", err)
+            if self._session:
+                await self._session.close()
+            return self.async_abort(reason="api_not_enabled")
         except Exception as err:  # noqa: BLE001
-            _LOGGER.exception("Failed to create telemetry container")
+            _LOGGER.exception("Failed to create telemetry container: %s", err)
             if self._session:
                 await self._session.close()
             return self.async_abort(reason="cannot_connect")

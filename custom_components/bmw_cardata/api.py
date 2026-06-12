@@ -65,9 +65,16 @@ class BMWCarDataAPI:
         ) as resp:
             if resp.status == 401:
                 raise PermissionError("BMW API returned 401 – token may be revoked")
+            if resp.status == 403:
+                body = await resp.text()
+                _LOGGER.error("BMW API returned 403 for %s – CarData API access may not be enabled in the BMW portal. Response: %s", url, body)
+                raise PermissionError(f"BMW API returned 403 – CarData API access not enabled. Response: {body}")
             if resp.status == 429:
                 raise RuntimeError("BMW API rate limit hit (50 calls/day exceeded)")
-            resp.raise_for_status()
+            if not resp.ok:
+                body = await resp.text()
+                _LOGGER.error("BMW API returned %s for %s: %s", resp.status, url, body)
+                resp.raise_for_status()
             return await resp.json()
 
     async def _post(self, path: str, json_body: Any) -> Any:

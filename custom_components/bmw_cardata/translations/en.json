@@ -22,7 +22,8 @@
     "abort": {
       "already_configured": "BMW CarData is already configured for this vehicle.",
       "no_vehicles": "No vehicles found on this BMW account.",
-      "cannot_connect": "Could not connect to BMW CarData API."
+      "cannot_connect": "Could not connect to BMW CarData API.",
+      "api_not_enabled": "BMW CarData API access is not activated. In the BMW portal, click 'Request access to CarData API', wait 60 seconds, then try again."
     }
   },
   "issues": {

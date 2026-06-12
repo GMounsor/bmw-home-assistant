@@ -159,6 +159,7 @@ async def refresh_access_token(
         "client_id": client_id,
         "grant_type": "refresh_token",
         "refresh_token": refresh_token,
+        "scope": OAUTH_SCOPE,  # BMW requires scope even on refresh requests
     }
 
     async with session.post(
@@ -175,6 +176,6 @@ async def refresh_access_token(
                 expires_at=time.time() + data.get("expires_in", 3600),
             )
 
-        raise ValueError(
+        raise PermissionError(
             f"Token refresh failed ({resp.status}): {data.get('error', 'unknown')}"
         )

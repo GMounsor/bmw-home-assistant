@@ -40,9 +40,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Refresh the container on every startup so descriptor-list changes
     # (signalled by a new CONTAINER_NAME) are picked up without the user
     # having to remove and re-add the integration.
+    # Refresh the container ID on startup so that a renamed CONTAINER_NAME
+    # (used to signal descriptor-list changes) causes a new container to be
+    # created automatically, without the user needing to remove/re-add.
+    #
+    # IMPORTANT: pass api.get_current_token() to the coordinator so both
+    # share the same (possibly-refreshed) token.  Creating two API instances
+    # with independent token state causes the second refresh attempt to fail
+    # with 400 invalid_request (BMW single-use refresh tokens).
     api = BMWCarDataAPI(session, data[CONF_CLIENT_ID], token)
     try:
         container_id = await api.get_or_create_container()
+        # Grab any token that was refreshed during container lookup
+        token = api.get_current_token()
     except Exception as err:  # noqa: BLE001
         _LOGGER.warning("Could not refresh container on startup, using stored ID: %s", err)
         container_id = data[CONF_CONTAINER_ID]
@@ -57,7 +67,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass=hass,
         session=session,
         client_id=data[CONF_CLIENT_ID],
-        token=token,
+        token=token,          # already refreshed by api above
         container_id=container_id,
         vins=data[CONF_VINS],
     )

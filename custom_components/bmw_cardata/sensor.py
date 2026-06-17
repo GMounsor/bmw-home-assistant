@@ -479,6 +479,61 @@ SENSORS = (
         icon="mdi:sim",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+    # ── EV / PHEV – HV Battery ───────────────────────────────────────────────
+    BMWSensorEntityDescription(
+        key="ev_battery_soc",
+        descriptor="vehicle.drivetrain.hvBattery.stateOfCharge",
+        name="EV Battery",
+        icon="mdi:battery-high",
+        native_unit_of_measurement=PERCENTAGE,
+        device_class=SensorDeviceClass.BATTERY,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
+        value_fn=_int_val,
+    ),
+    BMWSensorEntityDescription(
+        key="ev_range",
+        descriptor="vehicle.drivetrain.hvBattery.remainingRange",
+        name="EV Range",
+        icon="mdi:lightning-bolt",
+        native_unit_of_measurement=UnitOfLength.MILES,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
+        value_fn=_km_to_miles,
+    ),
+    # ── EV / PHEV – Charging ─────────────────────────────────────────────────
+    BMWSensorEntityDescription(
+        key="charging_status",
+        descriptor="vehicle.drivetrain.chargingSystem.status",
+        name="Charging Status",
+        icon="mdi:ev-station",
+    ),
+    BMWSensorEntityDescription(
+        key="charge_type",
+        descriptor="vehicle.drivetrain.chargingSystem.chargeType",
+        name="Charge Type",
+        icon="mdi:ev-plug-type2",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    BMWSensorEntityDescription(
+        key="charging_time_remaining",
+        descriptor="vehicle.drivetrain.chargingSystem.remainingChargingTime",
+        name="Charging Time Remaining",
+        icon="mdi:timer-outline",
+        native_unit_of_measurement="min",
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
+        value_fn=_int_val,
+    ),
+    BMWSensorEntityDescription(
+        key="target_soc",
+        descriptor="vehicle.drivetrain.chargingSystem.targetStateOfCharge",
+        name="Charge Target",
+        icon="mdi:battery-charging-100",
+        native_unit_of_measurement=PERCENTAGE,
+        suggested_display_precision=0,
+        value_fn=_int_val,
+    ),
 )
 
 

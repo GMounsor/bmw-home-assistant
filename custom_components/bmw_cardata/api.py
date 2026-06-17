@@ -14,6 +14,7 @@ from .const import (
     CONTAINER_NAME,
     CONTAINER_PURPOSE,
     DESCRIPTORS,
+    ICE_DESCRIPTORS,
     TOKEN_REFRESH_BUFFER_SECONDS,
 )
 
@@ -109,24 +110,42 @@ class BMWCarDataAPI:
     async def get_or_create_container(self):
         """Return (or create) the container matching CONTAINER_NAME.
 
-        Only reuses a container whose name exactly matches CONTAINER_NAME so
-        that renaming the constant triggers recreation with updated descriptors.
+        Reuses an existing container whose name matches CONTAINER_NAME.
+        If none exists, deletes ALL stale containers first (BMW enforces a
+        low per-account container limit) then creates a fresh one.
         """
         containers = await self.list_containers()
         _LOGGER.debug("Existing containers: %s", containers)
+
+        # Reuse our named container if it already exists
         for container in containers:
             if container.get("state") == "ACTIVE" and container.get("name") == CONTAINER_NAME:
                 _LOGGER.debug("Reusing container %s (%s)", CONTAINER_NAME, container.get("containerId"))
                 return container["containerId"]
+
+        # Clean up stale / old-named containers to stay within BMW's limit
+        for container in containers:
+            cid = container.get("containerId")
+            cname = container.get("name", "")
+            if cid and cname != CONTAINER_NAME:
+                _LOGGER.info("Deleting stale container '%s' (%s)", cname, cid)
+                await self.delete_container(cid)
+
+        # 3-tier fallback: full list → ICE-only → no descriptors
         try:
             return await self.create_container(descriptors=DESCRIPTORS)
         except aiohttp.ClientResponseError as err:
             if err.status != 400:
                 raise
-            _LOGGER.warning(
-                "Container creation with descriptor list rejected (400) - "
-                "retrying without descriptors. Error: %s", err
-            )
+            _LOGGER.warning("Full descriptor list rejected (400); trying ICE-only list")
+
+        try:
+            return await self.create_container(descriptors=ICE_DESCRIPTORS)
+        except aiohttp.ClientResponseError as err:
+            if err.status != 400:
+                raise
+            _LOGGER.warning("ICE descriptor list also rejected (400); creating without descriptors")
+
         return await self.create_container(descriptors=None)
 
     async def get_telematics(self, vin, container_id):

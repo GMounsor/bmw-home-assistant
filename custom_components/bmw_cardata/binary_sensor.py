@@ -159,6 +159,21 @@ BINARY_SENSORS = (
         icon="mdi:sleep",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+    # EV / PHEV
+    BMWBinarySensorEntityDescription(
+        key="charging_active",
+        descriptor="vehicle.drivetrain.chargingSystem.isActive",
+        name="Charging",
+        device_class=BinarySensorDeviceClass.BATTERY_CHARGING,
+        icon="mdi:battery-charging",
+    ),
+    BMWBinarySensorEntityDescription(
+        key="plug_connected",
+        descriptor="vehicle.drivetrain.chargingSystem.isConnected",
+        name="Plug Connected",
+        device_class=BinarySensorDeviceClass.PLUG,
+        icon="mdi:ev-plug-type2",
+    ),
 )
 
 

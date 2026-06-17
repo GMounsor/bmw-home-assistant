@@ -86,7 +86,17 @@ class BMWCarDataAPI:
 
     async def list_containers(self):
         data = await self._get("/customers/containers")
-        return data if isinstance(data, list) else []
+        _LOGGER.debug("list_containers raw response: type=%s value=%s", type(data).__name__, str(data)[:500])
+        if isinstance(data, list):
+            return data
+        if isinstance(data, dict):
+            # BMW may wrap the list under "containers", "data", "items" etc.
+            for key in ("containers", "data", "items", "content"):
+                if isinstance(data.get(key), list):
+                    _LOGGER.debug("Unwrapping containers from key '%s'", key)
+                    return data[key]
+        _LOGGER.warning("Unexpected list_containers response shape: %s", data)
+        return []
 
     async def create_container(self, name=CONTAINER_NAME, purpose=CONTAINER_PURPOSE, descriptors=None):
         body = {"name": name, "purpose": purpose}
@@ -107,46 +117,70 @@ class BMWCarDataAPI:
                 body = await resp.text()
                 _LOGGER.warning("DELETE container %s returned %s: %s", container_id, resp.status, body)
 
+    async def _delete_all_containers(self, containers):
+        """Delete every container in the list, logging each one."""
+        for container in containers:
+            cid = container.get("containerId")
+            cname = container.get("name", "unknown")
+            if cid:
+                _LOGGER.info("Deleting container '%s' (%s)", cname, cid)
+                await self.delete_container(cid)
+
     async def get_or_create_container(self):
         """Return (or create) the container matching CONTAINER_NAME.
 
         Reuses an existing container whose name matches CONTAINER_NAME.
-        If none exists, deletes ALL stale containers first (BMW enforces a
-        low per-account container limit) then creates a fresh one.
+        Otherwise deletes stale containers (BMW has a low per-account limit)
+        and creates a new one, with 3-tier descriptor fallback.
+        If BMW returns CU-124 (limit still reached), force-deletes ALL
+        containers and retries.
         """
         containers = await self.list_containers()
-        _LOGGER.debug("Existing containers: %s", containers)
+        _LOGGER.debug("Found %d containers", len(containers))
 
-        # Reuse our named container if it already exists
+        # Reuse our named container if it exists
         for container in containers:
             if container.get("state") == "ACTIVE" and container.get("name") == CONTAINER_NAME:
                 _LOGGER.debug("Reusing container %s (%s)", CONTAINER_NAME, container.get("containerId"))
                 return container["containerId"]
 
-        # Clean up stale / old-named containers to stay within BMW's limit
-        for container in containers:
-            cid = container.get("containerId")
-            cname = container.get("name", "")
-            if cid and cname != CONTAINER_NAME:
-                _LOGGER.info("Deleting stale container '%s' (%s)", cname, cid)
-                await self.delete_container(cid)
+        # Delete containers that don't match our current name
+        stale = [c for c in containers if c.get("name") != CONTAINER_NAME]
+        if stale:
+            _LOGGER.info("Deleting %d stale container(s)", len(stale))
+            await self._delete_all_containers(stale)
 
-        # 3-tier fallback: full list → ICE-only → no descriptors
-        try:
-            return await self.create_container(descriptors=DESCRIPTORS)
-        except aiohttp.ClientResponseError as err:
-            if err.status != 400:
-                raise
-            _LOGGER.warning("Full descriptor list rejected (400); trying ICE-only list")
+        # 3-tier creation fallback
+        for descriptor_list, label in [
+            (DESCRIPTORS, "full"),
+            (ICE_DESCRIPTORS, "ICE-only"),
+            (None, "no descriptors"),
+        ]:
+            try:
+                return await self.create_container(descriptors=descriptor_list)
+            except aiohttp.ClientResponseError as err:
+                if err.status == 403:
+                    # CU-124: BMW still says limit reached – force-delete everything and retry once
+                    _LOGGER.warning(
+                        "CU-124 on creation with %s descriptors; force-deleting all containers and retrying",
+                        label,
+                    )
+                    all_containers = await self.list_containers()
+                    await self._delete_all_containers(all_containers)
+                    try:
+                        return await self.create_container(descriptors=descriptor_list)
+                    except aiohttp.ClientResponseError as retry_err:
+                        if descriptor_list is None:
+                            raise
+                        _LOGGER.warning("Retry still failed (%s), trying next fallback", retry_err.status)
+                        continue
+                if err.status != 400:
+                    raise
+                if descriptor_list is None:
+                    raise
+                _LOGGER.warning("%s descriptor list rejected (400); trying next fallback", label)
 
-        try:
-            return await self.create_container(descriptors=ICE_DESCRIPTORS)
-        except aiohttp.ClientResponseError as err:
-            if err.status != 400:
-                raise
-            _LOGGER.warning("ICE descriptor list also rejected (400); creating without descriptors")
-
-        return await self.create_container(descriptors=None)
+        raise RuntimeError("All container creation attempts failed")
 
     async def get_telematics(self, vin, container_id):
         data = await self._get(

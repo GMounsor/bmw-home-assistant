@@ -539,7 +539,7 @@ SENSORS = (
 
 async def async_setup_entry(hass, entry, async_add_entities):
     coordinator = hass.data[DOMAIN][entry.entry_id]
-    vins = entry.data[CONF_VINS]
+    vins = entry.options.get(CONF_VINS, entry.data[CONF_VINS])
     entities = [
         BMWSensorEntity(coordinator, vin, description)
         for vin in vins

@@ -34,44 +34,79 @@ TOKEN_REFRESH_BUFFER_SECONDS = 300
 # Known-valid descriptors for ICE vehicles (verified against BMW CarData API).
 # Used as fallback when the full DESCRIPTORS list is rejected.
 ICE_DESCRIPTORS = [
+    # Odometer & range
     "vehicle.vehicle.travelledDistance",
     "vehicle.cabin.infotainment.navigation.remainingRange",
+    "vehicle.drivetrain.lastRemainingRange",
+    # Fuel
     "vehicle.drivetrain.fuelSystem.level",
     "vehicle.drivetrain.fuelSystem.remainingFuel",
+    "vehicle.drivetrain.fuelSystem.consumptionOverLifeTime.overall.fuel",
+    "vehicle.drivetrain.fuelSystem.consumptionOverLifeTime.overall.referenceDistance",
+    # Engine
+    "vehicle.drivetrain.engine.isActive",
+    "vehicle.drivetrain.engine.isIgnitionOn",
+    "vehicle.drivetrain.internalCombustionEngine.engine.ect",
+    # Location
     "vehicle.cabin.infotainment.navigation.currentLocation.latitude",
     "vehicle.cabin.infotainment.navigation.currentLocation.longitude",
     "vehicle.cabin.infotainment.navigation.currentLocation.heading",
+    # Doors
     "vehicle.cabin.door.status",
     "vehicle.cabin.door.lock.status",
     "vehicle.cabin.door.row1.driver.isOpen",
     "vehicle.cabin.door.row1.passenger.isOpen",
     "vehicle.cabin.door.row2.driver.isOpen",
     "vehicle.cabin.door.row2.passenger.isOpen",
+    # Windows
     "vehicle.cabin.window.row1.driver.status",
     "vehicle.cabin.window.row1.passenger.status",
     "vehicle.cabin.window.row2.driver.status",
     "vehicle.cabin.window.row2.passenger.status",
+    # Body
     "vehicle.body.hood.isOpen",
     "vehicle.body.trunk.isOpen",
-    "vehicle.status.serviceDistance.next",
-    "vehicle.status.serviceTime.yellow",
-    "vehicle.status.conditionBasedServices",
-    "vehicle.status.checkControlMessages",
-    "vehicle.electricalSystem.battery.voltage",
-    "vehicle.electricalSystem.battery.stateOfCharge",
-    "vehicle.electricalSystem.battery.serviceDemand.replace",
-    "vehicle.electricalSystem.battery.serviceDemand.recharge",
+    "vehicle.body.lights.isRunningOn",
+    # Tyres
     "vehicle.chassis.axle.row1.wheel.left.tire.pressure",
     "vehicle.chassis.axle.row1.wheel.right.tire.pressure",
     "vehicle.chassis.axle.row2.wheel.left.tire.pressure",
     "vehicle.chassis.axle.row2.wheel.right.tire.pressure",
-    "vehicle.drivetrain.engine.isActive",
-    "vehicle.drivetrain.engine.isIgnitionOn",
+    "vehicle.chassis.axle.row1.wheel.left.tire.pressureTarget",
+    "vehicle.chassis.axle.row1.wheel.right.tire.pressureTarget",
+    "vehicle.chassis.axle.row2.wheel.left.tire.pressureTarget",
+    "vehicle.chassis.axle.row2.wheel.right.tire.pressureTarget",
+    "vehicle.chassis.axle.row1.wheel.left.tire.temperature",
+    "vehicle.chassis.axle.row1.wheel.right.tire.temperature",
+    "vehicle.chassis.axle.row2.wheel.left.tire.temperature",
+    "vehicle.chassis.axle.row2.wheel.right.tire.temperature",
+    # Service & status
+    "vehicle.status.serviceDistance.next",
+    "vehicle.status.serviceTime.yellow",
+    "vehicle.status.conditionBasedServices",
+    "vehicle.status.checkControlMessages",
+    # 12V electrical
+    "vehicle.electricalSystem.battery.voltage",
+    "vehicle.electricalSystem.battery.stateOfCharge",
+    "vehicle.electricalSystem.battery.serviceDemand.replace",
+    "vehicle.electricalSystem.battery.serviceDemand.recharge",
+    # Trip & driving scores
+    "vehicle.trip.segment.end.traveledDistance",
+    "vehicle.trip.segment.end.time",
+    "vehicle.trip.segment.accumulated.acceleration.starsAverage",
+    "vehicle.trip.segment.accumulated.chassis.brake.starsAverage",
+    # Distance & speed averages
+    "vehicle.vehicle.averageWeeklyDistanceShortTerm",
+    "vehicle.vehicle.averageWeeklyDistanceLongTerm",
+    "vehicle.vehicle.avgSpeed",
+    # Vehicle state
     "vehicle.isMoving",
-    "vehicle.body.lights.isRunningOn",
     "vehicle.vehicle.antiTheftAlarmSystem.alarm.isOn",
     "vehicle.vehicle.antiTheftAlarmSystem.alarm.armStatus",
     "vehicle.vehicle.deepSleepModeActive",
+    # Diagnostics
+    "vehicle.electronicControlUnit.diagnosticTroubleCodes.raw",
+    "vehicle.sim.status",
 ]
 
 # Full descriptor list including EV/PHEV-specific entries.
@@ -90,6 +125,6 @@ DESCRIPTORS = ICE_DESCRIPTORS + [
     "vehicle.drivetrain.chargingSystem.targetStateOfCharge",
 ]
 
-# Bump this name whenever ICE_DESCRIPTORS changes to force container recreation.
-CONTAINER_NAME = "home_assistant_ice_v4"
+# Bump this name whenever DESCRIPTORS changes to force container recreation.
+CONTAINER_NAME = "home_assistant_v5"
 CONTAINER_PURPOSE = "Home Assistant BMW CarData integration"

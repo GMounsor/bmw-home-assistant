@@ -67,6 +67,7 @@ class BMWCoordinator(DataUpdateCoordinator):
                 result[vin] = vin_result
 
         except PermissionError as err:
+            _LOGGER.error("BMW CarData authentication error (token refresh failed): %s", err)
             # Raise a HA repairs issue so the user gets a UI notification
             ir.async_create_issue(
                 self.hass,

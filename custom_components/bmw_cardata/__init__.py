@@ -47,8 +47,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     try:
         container_id = await api.get_or_create_container()
         token = api.get_current_token()
-    except PermissionError:
+    except PermissionError as err:
         # Auth failure — fall through; coordinator will raise ConfigEntryAuthFailed
+        _LOGGER.error("BMW CarData auth failed at startup (token likely expired): %s", err)
         container_id = data[CONF_CONTAINER_ID]
     except Exception as err:  # noqa: BLE001
         _LOGGER.warning("Could not refresh container on startup, using stored ID: %s", err)

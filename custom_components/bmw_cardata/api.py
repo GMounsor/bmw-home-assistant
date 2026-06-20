@@ -203,7 +203,15 @@ class BMWCarDataAPI:
                 sorted(result.keys()),
             )
             return result
-        _LOGGER.debug("Raw telematicData (non-list) type=%s: %s", type(telematics).__name__, str(telematics)[:500])
+        if isinstance(telematics, dict):
+            _LOGGER.debug(
+                "Telemetry for VIN %s — %d descriptors returned: %s",
+                vin,
+                len(telematics),
+                sorted(telematics.keys()),
+            )
+        else:
+            _LOGGER.debug("Raw telematicData (non-list/dict) type=%s: %s", type(telematics).__name__, str(telematics)[:500])
         return telematics
 
     async def get_tyre_diagnosis(self, vin):

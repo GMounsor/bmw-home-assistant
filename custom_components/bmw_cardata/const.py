@@ -94,5 +94,5 @@ DESCRIPTORS = ICE_DESCRIPTORS + [
 ]
 
 # Bump this name whenever DESCRIPTORS changes to force container recreation.
-CONTAINER_NAME = "home_assistant_v6"
+CONTAINER_NAME = "home_assistant_v7"
 CONTAINER_PURPOSE = "Home Assistant BMW CarData integration"

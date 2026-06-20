@@ -25,9 +25,12 @@ _FALSE_VALUES = {"false", "0", "no", "closed", "off"}
 def _parse_bool(value):
     if value is None:
         return None
-    if value.lower() in _TRUE_VALUES:
+    # BMW's JSON true/false deserializes to Python True/False (not strings)
+    if isinstance(value, bool):
+        return value
+    if str(value).lower() in _TRUE_VALUES:
         return True
-    if value.lower() in _FALSE_VALUES:
+    if str(value).lower() in _FALSE_VALUES:
         return False
     return None
 

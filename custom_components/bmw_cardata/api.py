@@ -158,7 +158,9 @@ class BMWCarDataAPI:
             (ICE_DESCRIPTORS, "ICE-only"),
         ]:
             try:
-                return await self.create_container(descriptors=descriptor_list)
+                container_id = await self.create_container(descriptors=descriptor_list)
+                _LOGGER.info("Container created with %s descriptor list (%d descriptors)", label, len(descriptor_list or []))
+                return container_id
             except aiohttp.ClientResponseError as err:
                 if err.status == 403:
                     # CU-124: BMW still says limit reached – force-delete everything and retry once
@@ -180,24 +182,28 @@ class BMWCarDataAPI:
         raise RuntimeError("All container creation attempts failed — ICE descriptor list was also rejected")
 
     async def get_telematics(self, vin, container_id):
+        _LOGGER.debug("Fetching telemetry for VIN %s using container %s", vin, container_id)
         data = await self._get(
             f"/customers/vehicles/{vin}/telematicData",
             params={"containerId": container_id},
         )
         telematics = data.get("telematicData", {})
-        _LOGGER.debug(
-            "Raw telematicData type=%s sample=%s",
-            type(telematics).__name__,
-            str(telematics)[:500],
-        )
         # BMW returns a list: [{descriptor, value, unit, timestamp}, ...]
         # Convert to dict keyed by descriptor for sensor lookups
         if isinstance(telematics, list):
-            return {
+            result = {
                 item["descriptor"]: {k: v for k, v in item.items() if k != "descriptor"}
                 for item in telematics
                 if "descriptor" in item
             }
+            _LOGGER.debug(
+                "Telemetry for VIN %s — %d descriptors returned: %s",
+                vin,
+                len(result),
+                sorted(result.keys()),
+            )
+            return result
+        _LOGGER.debug("Raw telematicData (non-list) type=%s: %s", type(telematics).__name__, str(telematics)[:500])
         return telematics
 
     async def get_tyre_diagnosis(self, vin):

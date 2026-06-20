@@ -150,11 +150,12 @@ class BMWCarDataAPI:
             _LOGGER.info("Deleting %d stale container(s)", len(stale))
             await self._delete_all_containers(stale)
 
-        # 3-tier creation fallback
+        # 2-tier creation fallback: full (ICE+EV) → ICE-only
+        # NOTE: BMW rejects containers with no descriptors (CU-401), so there is
+        # no safe empty-descriptor fallback — ICE_DESCRIPTORS is the last resort.
         for descriptor_list, label in [
             (DESCRIPTORS, "full"),
             (ICE_DESCRIPTORS, "ICE-only"),
-            (None, "no descriptors"),
         ]:
             try:
                 return await self.create_container(descriptors=descriptor_list)
@@ -170,17 +171,13 @@ class BMWCarDataAPI:
                     try:
                         return await self.create_container(descriptors=descriptor_list)
                     except aiohttp.ClientResponseError as retry_err:
-                        if descriptor_list is None:
-                            raise
                         _LOGGER.warning("Retry still failed (%s), trying next fallback", retry_err.status)
                         continue
                 if err.status != 400:
                     raise
-                if descriptor_list is None:
-                    raise
                 _LOGGER.warning("%s descriptor list rejected (400); trying next fallback", label)
 
-        raise RuntimeError("All container creation attempts failed")
+        raise RuntimeError("All container creation attempts failed — ICE descriptor list was also rejected")
 
     async def get_telematics(self, vin, container_id):
         data = await self._get(
